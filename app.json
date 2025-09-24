@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "Agenda Lina",
+    "slug": "agenda-lina",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./src/assets/logo.jpeg",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./src/assets/logo.jpeg",
+      "resizeMode": "contain",
+      "backgroundColor": "#191970"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "icon": "./src/assets/logo.jpeg"
+    },
+    "android": {
+      "icon": "./src/assets/logo.jpeg",
+      "adaptiveIcon": {
+        "foregroundImage": "./src/assets/logo.jpeg",
+        "backgroundColor": "#191970"
+      },
+      "edgeToEdgeEnabled": true
+    },
+    "web": {
+      "favicon": "./src/assets/logo.jpeg"
+    }
+  }
+}
