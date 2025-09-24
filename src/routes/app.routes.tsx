@@ -8,6 +8,7 @@ import Dashboard from "../pages/Dashboard";
 import Avisos from "../pages/Avisos";
 import Professores from "../pages/Professores";
 import Responsaveis from "../pages/Responsaveis";
+import Alunos from "../pages/Alunos";
 import Turmas from "../pages/Turmas";
 import Disciplina from "../pages/Disciplina";
 
@@ -68,6 +69,16 @@ function TabNavigator() {
                 //   headerShown: false,
               tabBarIcon: ({ color, size }) => (
                 <Feather name="user-check" size={size} color={color} />
+              ),
+            }}
+          />
+          <Tab.Screen
+            name="Alunos"
+            component={Alunos}
+            options={{
+                //   headerShown: false,
+              tabBarIcon: ({ color, size }) => (
+                <Feather name="user" size={size} color={color} />
               ),
             }}
           />
