@@ -25,19 +25,44 @@ export default function Dashboard() {
   const [avisos, setAvisos] = useState<Aviso[]>([]);
   const [turmas, setTurmas] = useState<Turma[]>([]);
   const isAluno = user.role === 'ALUNO';
+  const isProfessor = user.role === 'PROFESSOR';
   
   useFocusEffect(
     React.useCallback(() => {
-      async function fetchTurmas() {
+      async function fetchMinhasTurmas() {
         try {
-          const response = await api.get("/turmas");
-          setTurmas(response.data);
+          let response;
+          
+          if (isAluno) {
+            // Para aluno: busca apenas a turma em que está matriculado
+            response = await api.get(`/alunos/${user.id}`);
+            if (response.data.turma) {
+              setTurmas([response.data.turma]);
+            } else {
+              setTurmas([]);
+            }
+          } else if (isProfessor) {
+            // Para professor: busca as turmas vinculadas a ele
+            response = await api.get(`/professores/${user.id}`);
+            if (response.data.turmas && response.data.turmas.length > 0) {
+              // A API retorna turmas no formato { turma: {...} }
+              const turmasVinculadas = response.data.turmas.map((t: any) => t.turma);
+              setTurmas(turmasVinculadas);
+            } else {
+              setTurmas([]);
+            }
+          } else {
+            // Para outros usuários (admin, secretaria): mostra todas as turmas
+            response = await api.get("/turmas");
+            setTurmas(response.data || []);
+          }
         } catch (error) {
-          console.log("Erro ao listar turmas");
+          console.log("Erro ao listar turmas:", error);
+          setTurmas([]);
         }
       }
-      fetchTurmas();
-    }, [])
+      fetchMinhasTurmas();
+    }, [user.id, isAluno, isProfessor])
   );
 
   return (
@@ -45,7 +70,7 @@ export default function Dashboard() {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.welcomeSection}>
-          <Text style={styles.headerTitle}>🏠 Dashboard</Text>
+          <Text style={styles.headerTitle}>🏠 Escola Lina Rodrigues</Text>
           <Text style={styles.welcomeText}>Olá, {user.name}!</Text>
           <Text style={styles.roleText}>Perfil: {user.role}</Text>
         </View>
@@ -55,7 +80,9 @@ export default function Dashboard() {
         {/* Seção de Turmas */}
         {turmas.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>📚 Minhas Turmas</Text>
+            <Text style={styles.sectionTitle}>
+              📚 {isAluno ? 'Minha Turma' : isProfessor ? 'Minhas Turmas' : 'Turmas da Escola'}
+            </Text>
             <FlatList
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -160,10 +187,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8f9ff',
   },
   header: {
-    backgroundColor: '#191970',
+   backgroundColor: "#191970",
+    paddingTop: 60,
+    paddingBottom: 30,
     paddingHorizontal: 20,
-    paddingVertical: 30,
-    paddingTop: 50,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
   welcomeSection: {
     alignItems: 'flex-start',

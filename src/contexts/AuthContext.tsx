@@ -60,7 +60,7 @@ export function AuthProvider({children}: AuthProviderProps){
 
     useEffect(()=>{
         async function getUser(){
-            const userInfo = await AsyncStorage.getItem('@sujeitopizzaria')
+            const userInfo = await AsyncStorage.getItem('@agendaLina')
             let hasUser: UserProps = JSON.parse(userInfo || '{}')
 
             if(Object.keys(hasUser).length > 0){
@@ -97,7 +97,7 @@ export function AuthProvider({children}: AuthProviderProps){
                 ...response.data
             };
 
-            await AsyncStorage.setItem('@sujeitopizzaria', JSON.stringify(data))
+            await AsyncStorage.setItem('@agendaLina', JSON.stringify(data))
 
             api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
@@ -130,8 +130,28 @@ export function AuthProvider({children}: AuthProviderProps){
                 role: tipo.toUpperCase() // PROFESSOR, ALUNO, RESPONSAVEL
             })
 
-            let userId = userResponse.data?.id || userResponse.data;
+            console.log('Resposta da criação do usuário:', userResponse.data);
+
+            // Extrair o ID do usuário criado
+            let userId;
+            if (userResponse.data && userResponse.data.user && userResponse.data.user.id) {
+                // Caso o backend retorne {user: {id: X, ...}}
+                userId = userResponse.data.user.id;
+            } else if (typeof userResponse.data === 'object' && userResponse.data.id) {
+                // Caso o backend retorne {id: X, ...}
+                userId = userResponse.data.id;
+            } else if (typeof userResponse.data === 'number') {
+                // Caso o backend retorne apenas o ID como número
+                userId = userResponse.data;
+            } else if (typeof userResponse.data === 'string') {
+                // Caso o backend retorne apenas o ID como string
+                userId = parseInt(userResponse.data);
+            } else {
+                throw new Error('Erro ao obter ID do usuário criado');
+            }
+            
             const userIdNumber = parseInt(String(userId));
+            console.log('UserID convertido:', userIdNumber);
 
             // Criar o perfil específico
             if (tipo === 'professor') {
@@ -141,6 +161,7 @@ export function AuthProvider({children}: AuthProviderProps){
                     ...(disciplina && { disciplina }),
                     ...(formacao && { formacao })
                 };
+                console.log('Dados do professor a serem enviados:', professorData);
                 await api.post('/professor', professorData);
                 
             } else if (tipo === 'aluno') {
@@ -150,6 +171,7 @@ export function AuthProvider({children}: AuthProviderProps){
                     ...(idade && { idade }),
                     ...(turma && { turma })
                 };
+                console.log('Dados do aluno a serem enviados:', alunoData);
                 await api.post('/aluno', alunoData);
                 
             } else if (tipo === 'responsavel') {
@@ -165,6 +187,8 @@ export function AuthProvider({children}: AuthProviderProps){
                 if (alunoId) {
                     responsavelData.alunoId = alunoId;
                 }
+                
+                console.log('Dados do responsável a serem enviados:', responsavelData);
                 
                 try {
                     await api.post('/responsavel', responsavelData);
