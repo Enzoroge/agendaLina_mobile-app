@@ -15,6 +15,7 @@ import { api } from '../../services/api';
 interface Disciplina {
   id: number;
   nome: string;
+  professorId?: number | null;
 }
 
 interface EditDisciplinaModalProps {
@@ -51,13 +52,35 @@ export default function EditDisciplinaModal({
       return;
     }
 
+    // Verificar se o nome não mudou para evitar requisição desnecessária
+    if (nomeDisciplina.trim() === disciplina.nome) {
+      Alert.alert('Info', 'Nenhuma alteração foi feita');
+      return;
+    }
+
     try {
       setLoading(true);
       
-      await api.put(`/disciplina/${disciplina.id}`, {
-        nome: nomeDisciplina.trim()
+      // Garantir que enviamos o nome e preservamos o professorId existente
+      const payload = {
+        nome: nomeDisciplina.trim(),
+        professorId: disciplina.professorId || null
+      };
+      
+      console.log('📤 Enviando PUT para disciplina ID:', disciplina.id);
+      console.log('📤 Nome original:', disciplina.nome);
+      console.log('📤 Nome novo:', nomeDisciplina.trim());
+      console.log('📤 ProfessorId mantido:', disciplina.professorId);
+      console.log('📤 Payload completo:', payload);
+      console.log('📤 URL completa:', `${api.defaults.baseURL}/disciplina/${disciplina.id}`);
+      
+      const response = await api.put(`/disciplina/${disciplina.id}`, payload, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
       });
-
+      
+      console.log('✅ Resposta da API PUT:', response.data);
       console.log('✅ Disciplina atualizada com sucesso! Chamando onUpdate...');
       
       // Chama onUpdate imediatamente após sucesso
@@ -69,9 +92,29 @@ export default function EditDisciplinaModal({
         'Disciplina atualizada com sucesso!'
       );
 
-    } catch (error) {
+    } catch (error: any) {
       console.log('Erro ao atualizar disciplina:', error);
-      Alert.alert('Erro', 'Não foi possível atualizar a disciplina');
+      console.log('Status do erro:', error.response?.status);
+      console.log('Dados do erro:', error.response?.data);
+      console.log('Mensagem do erro:', error.message);
+      
+      let errorMessage = 'Não foi possível atualizar a disciplina';
+      
+      if (error.response?.status === 400) {
+        // Se for erro 400, pode ser problema com o backend tentando definir professorId
+        const errorData = error.response?.data;
+        console.log('🔍 Analisando erro 400:', errorData);
+        
+        if (errorData?.message?.includes('professorId') || errorData?.message?.includes('Invalid value provided')) {
+          errorMessage = `🐛 BUG IDENTIFICADO NO BACKEND!\n\nArquivo: UpdateDisciplinaService.ts\nLinha 26: professorId: professorId?? disciplinaExist.nome\n\n❌ ERRO: Está usando disciplinaExist.nome (string)\n✅ CORREÇÃO: Deve usar disciplinaExist.professorId\n\nPor favor, corrija o backend!`;
+        } else {
+          errorMessage = `Erro de validação: ${errorData?.message || 'Dados inválidos'}`;
+        }
+      } else if (error.response?.status === 404) {
+        errorMessage = 'Disciplina não encontrada';
+      }
+      
+      Alert.alert('Erro', errorMessage);
     } finally {
       setLoading(false);
     }

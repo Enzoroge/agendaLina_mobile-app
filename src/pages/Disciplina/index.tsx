@@ -12,6 +12,7 @@ import { useDeleteDisciplina } from './deleteDisciplina';
 type Disciplina = {
   id: number;
   nome: string;
+  professorId?: number | null;
   professor: Professor[] | Professor | string | null;
   turma: string[];
   atividades: string[];
@@ -149,7 +150,16 @@ export default function Disciplina() {
 
   // Função para lidar com exclusão
   const handleDelete = (disciplina: Disciplina) => {
-    executarDelete(disciplina, fetchDisciplinas);
+    console.log('🗑️ Iniciando exclusão da disciplina:', disciplina);
+    console.log('Hook executarDelete:', typeof executarDelete);
+    
+    try {
+      const deleteFunction = executarDelete(disciplina, fetchDisciplinas);
+      console.log('Função de delete criada:', typeof deleteFunction);
+      deleteFunction();
+    } catch (error) {
+      console.log('Erro ao executar delete:', error);
+    }
   };
 
   useEffect(() => {

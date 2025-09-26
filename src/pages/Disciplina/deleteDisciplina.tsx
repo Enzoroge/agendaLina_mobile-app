@@ -5,6 +5,7 @@ import { api } from '../../services/api';
 interface Disciplina {
   id: number;
   nome: string;
+  professorId?: number | null;
 }
 
 interface DeleteDisciplinaProps {
@@ -14,6 +15,8 @@ interface DeleteDisciplinaProps {
 
 export const deleteDisciplina = ({ disciplina, onDelete }: DeleteDisciplinaProps) => {
   const confirmarExclusao = () => {
+    console.log('🗑️ Confirmando exclusão da disciplina:', disciplina.nome);
+    
     Alert.alert(
       'Confirmar Exclusão',
       `Tem certeza que deseja excluir a disciplina "${disciplina.nome}"?`,
@@ -21,19 +24,33 @@ export const deleteDisciplina = ({ disciplina, onDelete }: DeleteDisciplinaProps
         {
           text: 'Cancelar',
           style: 'cancel',
+          onPress: () => console.log('❌ Exclusão cancelada'),
         },
         {
           text: 'Excluir',
           style: 'destructive',
-          onPress: executarExclusao,
+          onPress: () => {
+            console.log('✅ Usuário confirmou exclusão');
+            executarExclusao();
+          },
         },
       ]
     );
   };
 
   const executarExclusao = async () => {
+    console.log('🔥 Executando exclusão da disciplina ID:', disciplina.id);
+    console.log('🔥 URL de delete:', `/disciplina/${disciplina.id}`);
+    
     try {
-      await api.delete(`/disciplina/${disciplina.id}`);
+      const response = await api.delete(`/disciplina/${disciplina.id}`, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      console.log('✅ Resposta da API delete - Status:', response.status);
+      console.log('✅ Resposta da API delete - Data:', response.data);
       
       console.log('✅ Disciplina excluída com sucesso! Chamando onDelete...');
       
@@ -45,7 +62,10 @@ export const deleteDisciplina = ({ disciplina, onDelete }: DeleteDisciplinaProps
         'Disciplina excluída com sucesso!'
       );
     } catch (error: any) {
-      console.log('Erro ao excluir disciplina:', error);
+      console.log('❌ Erro ao excluir disciplina:', error);
+      console.log('Status do erro:', error.response?.status);
+      console.log('Dados do erro:', error.response?.data);
+      console.log('Mensagem do erro:', error.message);
       
       let errorMessage = 'Não foi possível excluir a disciplina';
       
@@ -65,6 +85,9 @@ export const deleteDisciplina = ({ disciplina, onDelete }: DeleteDisciplinaProps
 // Hook personalizado para facilitar o uso
 export const useDeleteDisciplina = () => {
   return (disciplina: Disciplina, onDelete: () => void) => {
+    console.log('🪝 Hook useDeleteDisciplina chamado para:', disciplina.nome);
+    console.log('Callback onDelete tipo:', typeof onDelete);
+    
     return deleteDisciplina({ disciplina, onDelete });
   };
 };
