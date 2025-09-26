@@ -291,7 +291,7 @@ Alunos podem acessar apenas os avisos."
               {/* Turmas */}
               {item.turma && item.turma.length > 0 && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>🏫 Turmas:</Text>
+                  <Text style={styles.sectionTitle}>� Turmas:</Text>
                   <View style={styles.tagContainer}>
                     {item.turma.map((turma, index) => (
                       <View key={index} style={[styles.tag, styles.turmaTag]}>
@@ -305,7 +305,7 @@ Alunos podem acessar apenas os avisos."
               {/* Atividades */}
               {item.atividades && item.atividades.length > 0 && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>📝 Atividades:</Text>
+                  <Text style={styles.sectionTitle}>� Atividades:</Text>
                   <View style={styles.tagContainer}>
                     {item.atividades.map((atividade, index) => (
                       <View key={index} style={[styles.tag, styles.atividadeTag]}>
@@ -579,10 +579,15 @@ const styles = StyleSheet.create({
   tag: {
     backgroundColor: "#2196F3",
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 15,
+    paddingVertical: 8,
+    borderRadius: 20,
     marginRight: 8,
     marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
   },
   turmaTag: {
     backgroundColor: "#FF9800",
@@ -592,8 +597,8 @@ const styles = StyleSheet.create({
   },
   tagText: {
     color: "#fff",
-    fontSize: 12,
-    fontWeight: "600",
+    fontSize: 13,
+    fontWeight: "700",
   },
   emptySection: {
     backgroundColor: "#f8f9fa",
