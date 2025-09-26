@@ -9,9 +9,13 @@ import {
   RefreshControl,
   Alert
 } from "react-native";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Feather } from '@expo/vector-icons';
 import { api } from "../../services/api";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { AuthContext } from "../../contexts/AuthContext";
+import EditAvisoModal from './editAviso';
+import { useDeleteAviso } from './deleteAviso';
 
 type Aviso = {
   id: number;
@@ -25,13 +29,99 @@ export default function Avisos() {
   const [avisos, setAvisos] = useState<Aviso[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [expandedCards, setExpandedCards] = useState<Set<number>>(new Set());
+  const [readAvisos, setReadAvisos] = useState<Set<number>>(new Set());
   const navigation = useNavigation();
+  
+  // Estados para edição
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [avisoSelecionado, setAvisoSelecionado] = useState<Aviso | null>(null);
+  
+  // Hook para deletar aviso
+  const executarDelete = useDeleteAviso();
   
   const isAluno = user.role === 'ALUNO';
 
+  // Carregar avisos lidos do AsyncStorage
+  const loadReadAvisos = async () => {
+    try {
+      if (!user || !user.id) {
+        console.log('⚠️ User ID não disponível ainda, aguardando...');
+        return;
+      }
+      
+      const readAvisosData = await AsyncStorage.getItem(`readAvisos_${user.id}`);
+      if (readAvisosData) {
+        const readIds = JSON.parse(readAvisosData);
+        setReadAvisos(new Set(readIds));
+        console.log('📖 Avisos lidos carregados para usuário', user.id, ':', readIds);
+      } else {
+        console.log('📖 Nenhum aviso lido encontrado para usuário', user.id);
+        setReadAvisos(new Set()); // Garantir estado limpo
+      }
+    } catch (error) {
+      console.log('Erro ao carregar avisos lidos:', error);
+      setReadAvisos(new Set()); // Estado limpo em caso de erro
+    }
+  };
+
+  // Salvar avisos lidos no AsyncStorage
+  const saveReadAvisos = async (readIds: Set<number>) => {
+    try {
+      if (!user || !user.id) {
+        console.log('⚠️ User ID não disponível, não foi possível salvar');
+        return;
+      }
+      
+      await AsyncStorage.setItem(`readAvisos_${user.id}`, JSON.stringify(Array.from(readIds)));
+      console.log('💾 Avisos lidos salvos para usuário', user.id, ':', Array.from(readIds));
+    } catch (error) {
+      console.log('Erro ao salvar avisos lidos:', error);
+    }
+  };
+
+  // Marcar aviso como lido
+  const markAvisoAsRead = async (avisoId: number) => {
+    const newReadAvisos = new Set(readAvisos);
+    newReadAvisos.add(avisoId);
+    setReadAvisos(newReadAvisos);
+    await saveReadAvisos(newReadAvisos);
+    console.log(`✅ Aviso ${avisoId} marcado como lido`);
+  };
+
+  // Função para abrir modal de edição
+  const abrirEdicao = (aviso: Aviso) => {
+    setAvisoSelecionado(aviso);
+    setEditModalVisible(true);
+  };
+
+  // Função para fechar modal de edição
+  const fecharEdicao = () => {
+    setEditModalVisible(false);
+    setAvisoSelecionado(null);
+  };
+
+  // Função para lidar com exclusão
+  const handleDelete = (aviso: Aviso) => {
+    console.log('🗑️ Iniciando exclusão do aviso:', aviso);
+    console.log('Hook executarDelete:', typeof executarDelete);
+    
+    try {
+      const deleteFunction = executarDelete(aviso, fetchAvisos);
+      console.log('Função de delete criada:', typeof deleteFunction);
+      deleteFunction();
+    } catch (error) {
+      console.log('Erro ao executar delete:', error);
+    }
+  };
+
   async function fetchAvisos() {
     try {
-      const response = await api.get("/avisos");
+      // Adiciona timestamp para evitar cache
+      const timestamp = new Date().getTime();
+      const response = await api.get(`/avisos?t=${timestamp}`);
+      
+      console.log('📢 Avisos carregados:', response.data.length);
+      
       // Ordena os avisos do mais recente para o mais antigo
       const avisosOrdenados = response.data.sort((a: Aviso, b: Aviso) => {
         return new Date(b.craidoEm).getTime() - new Date(a.craidoEm).getTime();
@@ -51,9 +141,42 @@ export default function Avisos() {
 
   useFocusEffect(
     React.useCallback(() => {
-      fetchAvisos();
-    }, [])
+      const loadData = async () => {
+        // Garantir que o usuário esteja carregado antes de carregar dados
+        if (user && user.id) {
+          console.log('👤 Carregando dados para usuário:', user.id);
+          await loadReadAvisos();
+          await fetchAvisos();
+        } else {
+          console.log('⚠️ Usuário não carregado ainda, tentando novamente...');
+          // Tentar novamente após um pequeno delay
+          setTimeout(async () => {
+            if (user && user.id) {
+              console.log('👤 Segundo teste - carregando dados para usuário:', user.id);
+              await loadReadAvisos();
+              await fetchAvisos();
+            }
+          }, 100);
+        }
+      };
+      loadData();
+    }, [user, user?.id]) // Dependência do user e user.id
   );
+
+  // Effect adicional para recarregar quando o usuário mudar (login/logout)
+  useEffect(() => {
+    if (user && user.id) {
+      console.log('🔄 Usuário mudou, recarregando dados para:', user.id);
+      const reloadData = async () => {
+        // Limpar estado anterior
+        setReadAvisos(new Set());
+        // Carregar novos dados
+        await loadReadAvisos();
+        await fetchAvisos();
+      };
+      reloadData();
+    }
+  }, [user?.id]); // Só executa quando o user.id muda
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -71,16 +194,37 @@ export default function Avisos() {
     setExpandedCards(prev => {
       const newSet = new Set(prev);
       if (newSet.has(cardId)) {
+        // Se está contraindo (fechando), não faz nada
         newSet.delete(cardId);
       } else {
+        // Se está expandindo (abrindo), apenas expande - não marca como lido
         newSet.add(cardId);
       }
       return newSet;
     });
   };
 
+  // Função para marcar como lido ao tocar no card
+  const handleCardPress = (avisoId: number) => {
+    // Marca como lido quando o usuário toca no card (mostra interesse)
+    if (!readAvisos.has(avisoId)) {
+      markAvisoAsRead(avisoId);
+      console.log(`� Aviso marcado como lido: ${avisoId}`);
+    }
+  };
+
   const shouldShowReadMore = (text: string) => {
     return text && text.length > 100;
+  };
+
+  // Calcular avisos não lidos
+  const getUnreadCount = () => {
+    return avisos.filter(aviso => !readAvisos.has(aviso.id)).length;
+  };
+
+  // Calcular avisos lidos
+  const getReadCount = () => {
+    return avisos.filter(aviso => readAvisos.has(aviso.id)).length;
   };
 
   return (
@@ -91,6 +235,23 @@ export default function Avisos() {
         <Text style={styles.headerSubtitle}>
           {avisos.length} {avisos.length === 1 ? 'aviso' : 'avisos'} disponíveis
         </Text>
+        
+        {/* Contador de avisos não lidos */}
+        <View style={styles.counterContainer}>
+          <View style={styles.counterItem}>
+            <View style={[styles.counterDot, styles.unreadDot]} />
+            <Text style={styles.counterText}>
+              {getUnreadCount()} não {getUnreadCount() === 1 ? 'lido' : 'lidos'}
+            </Text>
+          </View>
+          
+          <View style={styles.counterItem}>
+            <View style={[styles.counterDot, styles.readDot]} />
+            <Text style={styles.counterText}>
+              {getReadCount()} {getReadCount() === 1 ? 'lido' : 'lidos'}
+            </Text>
+          </View>
+        </View>
       </View>
 
       {/* Create Button - apenas para não-alunos */}
@@ -112,38 +273,85 @@ export default function Avisos() {
         renderItem={({ item }) => {
           const isExpanded = expandedCards.has(item.id);
           const showReadMore = shouldShowReadMore(item.descricao);
+          const isRead = readAvisos.has(item.id);
           
           return (
-            <View style={styles.card}>
-              <View style={styles.cardHeader}>
-                <View style={styles.cardTitleContainer}>
-                  <Text style={styles.cardTitle}>{item.titulo}</Text>
-                </View>
-                <Text style={styles.cardDate}>{formatDate(item.craidoEm)}</Text>
-              </View>
-              
-              <Text 
-                style={[styles.cardDescription, !showReadMore && { marginBottom: 0 }]} 
-                numberOfLines={isExpanded ? undefined : 3}
-              >
-                {item.descricao}
-              </Text>
-              
-              {/* Botão Ler mais/menos */}
-              <View style={styles.cardFooter}>
-                {showReadMore && (
-                  <TouchableOpacity 
-                    style={styles.readMoreButton}
-                    onPress={() => toggleExpandCard(item.id)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.readMoreText}>
-                      {isExpanded ? '📖 Ler menos' : '👁️ Ler mais'}
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={() => handleCardPress(item.id)}
+            >
+              <View style={[
+                styles.card, 
+                isRead && styles.readCard
+              ]}>
+                <View style={styles.cardHeader}>
+                  <View style={styles.cardLeft}>
+                    <View style={styles.cardTitleContainer}>
+                      <Text style={[
+                        styles.cardTitle,
+                        isRead && styles.readText
+                      ]}>
+                        {isRead && '✓ '}{item.titulo}
+                      </Text>
+                    </View>
+                    <Text style={[
+                      styles.cardDate,
+                      isRead && styles.readText
+                    ]}>
+                      {formatDate(item.craidoEm)}
                     </Text>
-                  </TouchableOpacity>
-                )}
+                  </View>
+                  
+                  {/* Botões de ação - apenas para não-alunos */}
+                  {!isAluno && (
+                    <View style={styles.cardActions}>
+                      <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={() => abrirEdicao(item)}
+                      >
+                        <Feather name="edit-3" size={16} color="#007BFF" />
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.deleteButton]}
+                        onPress={() => handleDelete(item)}
+                      >
+                        <Feather name="trash-2" size={16} color="#DC3545" />
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+                
+                <Text 
+                  style={[
+                    styles.cardDescription, 
+                    !showReadMore && { marginBottom: 0 },
+                    isRead && styles.readText
+                  ]} 
+                  numberOfLines={isExpanded ? undefined : 3}
+                >
+                  {item.descricao}
+                </Text>
+                
+                {/* Botão Ler mais/menos */}
+                <View style={styles.cardFooter}>
+                  {showReadMore && (
+                    <TouchableOpacity 
+                      style={[styles.readMoreButton, isRead && styles.readReadMoreButton]}
+                      onPress={(e) => {
+                        e.stopPropagation(); // Impede que o toque no card seja acionado
+                        toggleExpandCard(item.id);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.readMoreText, isRead && styles.readText]}>
+                        {isExpanded ? '📖 Ler menos' : '👁️ Ler mais'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
-            </View>
+            </TouchableOpacity>
           );
         }}
         showsVerticalScrollIndicator={false}
@@ -166,6 +374,14 @@ export default function Avisos() {
             </Text>
           </View>
         )}
+      />
+
+      {/* Modal de Edição */}
+      <EditAvisoModal
+        visible={editModalVisible}
+        aviso={avisoSelecionado}
+        onClose={fecharEdicao}
+        onUpdate={fetchAvisos}
       />
     </View>
   );
@@ -200,6 +416,34 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#e0e0e0',
     textAlign: 'center',
+  },
+  counterContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 15,
+    gap: 20,
+  },
+  counterItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  counterDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  unreadDot: {
+    backgroundColor: '#FF6B6B',
+  },
+  readDot: {
+    backgroundColor: '#4CAF50',
+  },
+  counterText: {
+    fontSize: 14,
+    color: '#e0e0e0',
+    fontWeight: '500',
   },
   createButtonContainer: {
     paddingHorizontal: 20,
@@ -244,6 +488,29 @@ const styles = StyleSheet.create({
   },
   cardHeader: {
     marginBottom: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  cardLeft: {
+    flex: 1,
+  },
+  cardActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginLeft: 10,
+  },
+  actionButton: {
+    padding: 6,
+    borderRadius: 6,
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  deleteButton: {
+    backgroundColor: '#fff5f5',
+    borderColor: '#fed7d7',
   },
   cardTitleContainer: {
     flexDirection: "row",
@@ -305,5 +572,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#999",
     textAlign: "center",
+  },
+  // Estilos para avisos lidos (esmaecidos)
+  readCard: {
+    opacity: 0.6,
+    backgroundColor: "#f8f8f8",
+  },
+  readText: {
+    color: "#888",
+  },
+  readReadMoreButton: {
+    backgroundColor: "#f0f0f0",
+    borderColor: "#ccc",
   },
 });
