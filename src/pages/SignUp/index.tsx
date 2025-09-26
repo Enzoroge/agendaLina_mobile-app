@@ -24,6 +24,10 @@ type Disciplina = {
     nome: string;
 };
 
+// Códigos de acesso para cada tipo de usuário
+const CODIGO_PROFESSOR = 'PROF2024';
+const CODIGO_RESPONSAVEL = 'RESP2024';
+
 export default function SignUp() {
     const { signUp, loadingAuth } = useContext(AuthContext);
     const navigation = useNavigation();
@@ -50,6 +54,52 @@ export default function SignUp() {
     // Campos específicos para Responsável
     const [telefone, setTelefone] = useState('');
     const [endereco, setEndereco] = useState('');
+    
+    // Código de acesso para validação
+    const [codigoAcesso, setCodigoAcesso] = useState('');
+    const [mostrarCodigoAcesso, setMostrarCodigoAcesso] = useState(false);
+
+    // Função para validar código de acesso
+    const validarCodigoAcesso = (tipo: UserType, codigo: string): boolean => {
+        switch (tipo) {
+            case 'professor':
+                return codigo === CODIGO_PROFESSOR;
+            case 'responsavel':
+                return codigo === CODIGO_RESPONSAVEL;
+            case 'aluno':
+                return true; // Alunos não precisam de código
+            default:
+                return false;
+        }
+    };
+
+    // Função para mostrar/ocultar campo de código baseado no tipo
+    const handleUserTypeChange = (tipo: UserType) => {
+        setUserType(tipo);
+        setCodigoAcesso('');
+        
+        // Mostrar campo de código apenas para professor e responsável
+        if (tipo === 'professor' || tipo === 'responsavel') {
+            setMostrarCodigoAcesso(true);
+        } else {
+            setMostrarCodigoAcesso(false);
+        }
+        
+        // Limpar campos específicos quando mudar de tipo
+        if (tipo !== 'professor') {
+            setDisciplinasSelecionadas([]);
+            setDisciplina('');
+            setFormacao('');
+        }
+        if (tipo !== 'aluno') {
+            setIdade('');
+            setTurma('');
+        }
+        if (tipo !== 'responsavel') {
+            setTelefone('');
+            setEndereco('');
+        }
+    };
 
     // Buscar disciplinas disponíveis
     const fetchDisciplinas = async () => {
@@ -130,11 +180,45 @@ export default function SignUp() {
             }
         }
 
+        // Validação do código de acesso
+        if (!codigoAcesso.trim()) {
+            Alert.alert('Erro', 'Por favor, digite o código de acesso');
+            return false;
+        }
+
+        return true;
+    };
+
+    const validateAccessCode = (tipo: NonNullable<UserType>, codigo: string): boolean => {
+        const codes = {
+            professor: 'PROF2024',
+            aluno: 'ALUNO2024',
+            responsavel: 'RESP2024'
+        } as const;
+
+        if (!codigo.trim()) {
+            Alert.alert('Erro', 'Por favor, digite o código de acesso');
+            return false;
+        }
+
+        if (codigo.trim() !== codes[tipo]) {
+            Alert.alert(
+                'Código Inválido', 
+                `Código de acesso incorreto para ${tipo}. Entre em contato com a administração para obter o código correto.`
+            );
+            return false;
+        }
+
         return true;
     };
 
     const handleSignUp = async () => {
         if (!validateForm()) return;
+
+        // Validar código de acesso
+        if (!validateAccessCode(userType!, codigoAcesso)) {
+            return; // A função já mostra o alert de erro
+        }
 
         try {
             await signUp({
@@ -359,6 +443,22 @@ export default function SignUp() {
                                     color="#666" 
                                 />
                             </TouchableOpacity>
+                        </View>
+                    </View>
+
+                    {/* Campo de Código de Acesso */}
+                    <View style={styles.inputWrapper}>
+                        <View style={styles.inputContainer}>
+                            <Feather name="key" size={20} color="#666" style={styles.inputIcon} />
+                            <TextInput
+                                placeholder={`Código para ${userType || 'acesso'}`}
+                                placeholderTextColor='#999'
+                                style={styles.input}
+                                value={codigoAcesso}
+                                onChangeText={setCodigoAcesso}
+                                autoCapitalize="characters"
+                                autoComplete="off"
+                            />
                         </View>
                     </View>
 
