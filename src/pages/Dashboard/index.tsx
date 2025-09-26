@@ -19,17 +19,42 @@ type Turma = {
   ano: number;
 };
 
+// Cache simples para evitar chamadas repetidas
+const endpointCache = {
+  lastChecked: null as Date | null,
+  professorEndpointAvailable: null as boolean | null,
+  turmasEndpointAvailable: null as boolean | null,
+};
+
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
+
+const isCacheValid = () => {
+  return endpointCache.lastChecked && 
+         (Date.now() - endpointCache.lastChecked.getTime()) < CACHE_DURATION;
+};
+
 export default function Dashboard() {
   const { signOut, user } = useContext(AuthContext);
   const navigation = useNavigation();
   const [avisos, setAvisos] = useState<Aviso[]>([]);
   const [turmas, setTurmas] = useState<Turma[]>([]);
+  const [turmasLoading, setTurmasLoading] = useState(false);
+  const [turmasError, setTurmasError] = useState<string | null>(null);
   const isAluno = user.role === 'ALUNO';
   const isProfessor = user.role === 'PROFESSOR';
   
   useFocusEffect(
     React.useCallback(() => {
       async function fetchMinhasTurmas() {
+        // Evitar múltiplas chamadas simultâneas
+        if (turmasLoading) {
+          console.log('⏳ Já carregando turmas, pulando nova chamada');
+          return;
+        }
+        
+        setTurmasLoading(true);
+        setTurmasError(null);
+        
         console.log('=== DEBUG DASHBOARD TURMAS ===');
         console.log('Tipo de usuário:', user.role);
         console.log('ID do usuário:', user.id);
@@ -68,48 +93,88 @@ export default function Dashboard() {
             }
             
           } else if (isProfessor) {
-            // Para professor: busca as turmas vinculadas a ele
-            const endpoint = `/professores/${user.id}`;
-            console.log('Tentando endpoint de PROFESSOR:', endpoint);
+            // Para professor: tentar múltiplas estratégias para obter turmas
+            console.log('🔍 Verificando cache de endpoints...');
             
-            try {
-              response = await api.get(endpoint);
-              console.log('✅ Sucesso - Resposta para professor:', response.data);
+            // Verificar cache primeiro
+            if (isCacheValid() && endpointCache.professorEndpointAvailable === false) {
+              console.log('📋 Cache indica que endpoints de professor não funcionam, indo direto para fallback');
               
-              if (response.data && response.data.turmas && response.data.turmas.length > 0) {
-                // A API retorna turmas no formato { turma: {...} }
-                const turmasVinculadas = response.data.turmas.map((t: any) => t.turma || t);
-                setTurmas(turmasVinculadas);
-                console.log('✅ Turmas do professor definidas:', turmasVinculadas);
-              } else {
+              // Ir direto para o fallback de todas as turmas
+              try {
+                const allTurmasResponse = await api.get('/turmas');
+                console.log('✅ Sucesso direto no fallback de todas as turmas:', allTurmasResponse.data);
+                setTurmas(allTurmasResponse.data || []);
+                console.log('✅ Exibindo todas as turmas para professor (cache otimizado)');
+              } catch (finalError: any) {
+                console.log('❌ Fallback direto também falhou');
                 setTurmas([]);
-                console.log('⚠️ Nenhuma turma encontrada para o professor');
               }
-            } catch (professorError: any) {
-              console.log('❌ ERRO no endpoint de professor:', endpoint);
-              console.log('Status:', professorError.response?.status);
-              console.log('Message:', professorError.response?.data?.message || professorError.message);
+            } else {
+              // Tentar endpoints normalmente
+              const endpoint = `/professores/${user.id}`;
+              console.log('Tentando endpoint de PROFESSOR:', endpoint);
               
-              // Fallback: tentar endpoint alternativo
-              if (professorError.response?.status === 404) {
-                console.log('🔄 Endpoint /professores não encontrado, tentando /professor');
-                try {
-                  const fallbackEndpoint = `/professor/${user.id}`;
-                  response = await api.get(fallbackEndpoint);
-                  console.log('✅ Sucesso no fallback - Resposta:', response.data);
-                  
-                  // Adaptar resposta conforme estrutura
-                  if (response.data && response.data.turmas) {
-                    setTurmas(response.data.turmas);
-                  } else {
-                    setTurmas([]);
+              try {
+                response = await api.get(endpoint);
+                console.log('✅ Sucesso - Resposta para professor:', response.data);
+                
+                // Atualizar cache
+                endpointCache.professorEndpointAvailable = true;
+                endpointCache.lastChecked = new Date();
+                
+                if (response.data && response.data.turmas && response.data.turmas.length > 0) {
+                  const turmasVinculadas = response.data.turmas.map((t: any) => t.turma || t);
+                  setTurmas(turmasVinculadas);
+                  console.log('✅ Turmas do professor definidas:', turmasVinculadas);
+                } else {
+                  setTurmas([]);
+                  console.log('⚠️ Nenhuma turma encontrada para o professor');
+                }
+              } catch (professorError: any) {
+                console.log('❌ ERRO no endpoint de professor:', endpoint);
+                console.log('Status:', professorError.response?.status);
+                console.log('Message:', professorError.response?.data?.message || professorError.message);
+                
+                if (professorError.response?.status === 404) {
+                  console.log('🔄 Endpoint /professores não encontrado, tentando /professor');
+                  try {
+                    const fallbackEndpoint = `/professor/${user.id}`;
+                    response = await api.get(fallbackEndpoint);
+                    console.log('✅ Sucesso no fallback - Resposta:', response.data);
+                    
+                    // Atualizar cache
+                    endpointCache.professorEndpointAvailable = true;
+                    endpointCache.lastChecked = new Date();
+                    
+                    if (response.data && response.data.turmas) {
+                      setTurmas(response.data.turmas);
+                    } else {
+                      setTurmas([]);
+                    }
+                  } catch (fallbackError: any) {
+                    console.log('❌ Fallback /professor também falhou:', fallbackError.response?.status);
+                    
+                    // Atualizar cache como indisponível
+                    endpointCache.professorEndpointAvailable = false;
+                    endpointCache.lastChecked = new Date();
+                    
+                    console.log('🔄 Tentando buscar todas as turmas como fallback final');
+                    try {
+                      const allTurmasResponse = await api.get('/turmas');
+                      console.log('✅ Sucesso no fallback de todas as turmas:', allTurmasResponse.data);
+                      setTurmas(allTurmasResponse.data || []);
+                      console.log('✅ Exibindo todas as turmas para professor como fallback');
+                    } catch (finalError: any) {
+                      console.log('❌ Todos os fallbacks falharam para professor');
+                      console.log('Status final:', finalError.response?.status);
+                      console.log('🔄 Definindo estado vazio para professor - endpoints indisponíveis');
+                      setTurmas([]);
+                    }
                   }
-                } catch (fallbackError: any) {
-                  console.log('❌ Fallback também falhou:', fallbackError.message);
+                } else {
                   setTurmas([]);
                 }
-              } else {
-                setTurmas([]);
               }
             }
             
@@ -143,6 +208,9 @@ export default function Dashboard() {
           console.log('Erro completo:', error);
           console.log('===============================');
           setTurmas([]);
+          setTurmasError('Erro inesperado ao carregar turmas');
+        } finally {
+          setTurmasLoading(false);
         }
       }
       
@@ -152,8 +220,9 @@ export default function Dashboard() {
       } else {
         console.log('⚠️ Usuário sem ID válido, pulando busca de turmas');
         setTurmas([]);
+        setTurmasLoading(false);
       }
-    }, [user.id, isAluno, isProfessor])
+    }, [user.id, isAluno, isProfessor, turmasLoading])
   );
 
   return (
