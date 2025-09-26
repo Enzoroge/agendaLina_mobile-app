@@ -39,34 +39,34 @@ export default function Disciplina() {
   // Hook para deletar disciplina
   const executarDelete = useDeleteDisciplina();
 
+  // Função helper para extrair nome do professor
+  const getProfessorNome = (professor: Professor[] | Professor | string | null): string | null => {
+    if (!professor) return null;
+    
+    if (typeof professor === 'string') return professor;
+    
+    if (Array.isArray(professor) && professor.length > 0) {
+      return professor[0]?.nome || null;
+    }
+    
+    if (typeof professor === 'object' && 'nome' in professor) {
+      return professor.nome || null;
+    }
+    
+    return null;
+  };
+
   // Buscar disciplinas
   const fetchDisciplinas = async () => {
-    console.log('🔄 Iniciando fetchDisciplinas...');
     try {
-      // Adiciona timestamp para evitar cache
       const timestamp = new Date().getTime();
       const response = await api.get(`/disciplinas?t=${timestamp}`);
-      console.log('✅ Resposta da API disciplinas:', response.data);
-      console.log('Tipo da resposta:', typeof response.data);
-      console.log('Total de disciplinas:', response.data?.length);
       
-      // Verificar se response.data é um array válido
       if (Array.isArray(response.data)) {
-        // Log detalhado da primeira disciplina para debug
-        if (response.data.length > 0) {
-          console.log('Primeira disciplina completa:', JSON.stringify(response.data[0], null, 2));
-          console.log('Professor da primeira disciplina:', response.data[0].professor);
-          console.log('Tipo do professor:', typeof response.data[0].professor);
-          console.log('É array?:', Array.isArray(response.data[0].professor));
-          console.log('Propriedades do professor:', Object.keys(response.data[0].professor || {}));
-        }
         setDisciplinas(response.data);
       } else if (response.data && response.data.disciplinas) {
-        // Talvez a API retorne { disciplinas: [...] }
-        console.log('API retornou estrutura com disciplinas:', response.data);
         setDisciplinas(response.data.disciplinas);
       } else {
-        console.log('Dados não são um array válido, estrutura:', response.data);
         setDisciplinas([]);
       }
     } catch (error: any) {
@@ -99,8 +99,6 @@ export default function Disciplina() {
         nome: novaDisciplina.trim()
       });
       
-      console.log('Disciplina criada:', response.data);
-      
       Alert.alert(
         'Sucesso!', 
         'Disciplina adicionada com sucesso',
@@ -110,7 +108,7 @@ export default function Disciplina() {
             onPress: () => {
               setModalVisible(false);
               setNovaDisciplina('');
-              fetchDisciplinas(); // Recarregar lista
+              fetchDisciplinas();
             }
           }
         ]
@@ -150,12 +148,8 @@ export default function Disciplina() {
 
   // Função para lidar com exclusão
   const handleDelete = (disciplina: Disciplina) => {
-    console.log('🗑️ Iniciando exclusão da disciplina:', disciplina);
-    console.log('Hook executarDelete:', typeof executarDelete);
-    
     try {
       const deleteFunction = executarDelete(disciplina, fetchDisciplinas);
-      console.log('Função de delete criada:', typeof deleteFunction);
       deleteFunction();
     } catch (error) {
       console.log('Erro ao executar delete:', error);
@@ -287,24 +281,10 @@ Alunos podem acessar apenas os avisos."
               </View>
 
               {/* Professor */}
-              {item.professor && (
+              {getProfessorNome(item.professor) && (
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>👨‍🏫 Professor:</Text>
-                  <View style={styles.debugContainer}>
-                    <Text style={styles.debugText}>Debug Professor:</Text>
-                    <Text style={styles.debugText}>Tipo: {typeof item.professor}</Text>
-                    <Text style={styles.debugText}>É array: {Array.isArray(item.professor) ? 'Sim' : 'Não'}</Text>
-                    <Text style={styles.debugText}>Conteúdo: {JSON.stringify(item.professor)}</Text>
-                  </View>
-                  {Array.isArray(item.professor) && item.professor.length > 0 ? (
-                    <Text style={styles.professorNome}>{item.professor[0]?.nome || 'Nome não encontrado'}</Text>
-                  ) : typeof item.professor === 'string' ? (
-                    <Text style={styles.professorNome}>{item.professor}</Text>
-                  ) : typeof item.professor === 'object' && !Array.isArray(item.professor) && (item.professor as Professor)?.nome ? (
-                    <Text style={styles.professorNome}>{(item.professor as Professor).nome}</Text>
-                  ) : (
-                    <Text style={styles.professorNome}>Professor não identificado</Text>
-                  )}
+                  <Text style={styles.professorNome}>{getProfessorNome(item.professor)}</Text>
                 </View>
               )}
 
@@ -336,8 +316,10 @@ Alunos podem acessar apenas os avisos."
                 </View>
               )}
 
-              {/* Caso não tenha professor, turmas ou atividades */}
-              {!item.professor && (!item.turma || item.turma.length === 0) && (!item.atividades || item.atividades.length === 0) && (
+              {/* Caso não tenha informações adicionais */}
+              {!getProfessorNome(item.professor) && 
+               (!item.turma || item.turma.length === 0) && 
+               (!item.atividades || item.atividades.length === 0) && (
                 <View style={styles.emptySection}>
                   <Text style={styles.emptyText}>📋 Informações adicionais não disponíveis</Text>
                 </View>
@@ -648,18 +630,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#999",
     textAlign: "center",
-  },
-  debugContainer: {
-    backgroundColor: "#fff3cd",
-    padding: 8,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: "#ffeaa7",
-    marginBottom: 8,
-  },
-  debugText: {
-    fontSize: 10,
-    color: "#856404",
-    fontFamily: "monospace",
   },
 });
