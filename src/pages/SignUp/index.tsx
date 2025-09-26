@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import {
     View,
     Text,
@@ -9,13 +9,20 @@ import {
     KeyboardAvoidingView,
     Platform,
     ScrollView,
-    ActivityIndicator
+    ActivityIndicator,
+    Modal
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { AuthContext } from '../../contexts/AuthContext';
+import { api } from '../../services/api';
 
 type UserType = 'professor' | 'aluno' | 'responsavel' | null;
+
+type Disciplina = {
+    id: number;
+    nome: string;
+};
 
 export default function SignUp() {
     const { signUp, loadingAuth } = useContext(AuthContext);
@@ -30,7 +37,10 @@ export default function SignUp() {
     const [userType, setUserType] = useState<UserType>(null);
     
     // Campos específicos para Professor
-    const [disciplina, setDisciplina] = useState('');
+    const [disciplinasSelecionadas, setDisciplinasSelecionadas] = useState<number[]>([]);
+    const [todasDisciplinas, setTodasDisciplinas] = useState<Disciplina[]>([]);
+    const [modalDisciplinasVisible, setModalDisciplinasVisible] = useState(false);
+    const [disciplina, setDisciplina] = useState(''); // Manter para compatibilidade
     const [formacao, setFormacao] = useState('');
     
     // Campos específicos para Aluno
@@ -40,6 +50,33 @@ export default function SignUp() {
     // Campos específicos para Responsável
     const [telefone, setTelefone] = useState('');
     const [endereco, setEndereco] = useState('');
+
+    // Buscar disciplinas disponíveis
+    const fetchDisciplinas = async () => {
+        try {
+            const response = await api.get('/disciplinas');
+            setTodasDisciplinas(response.data);
+        } catch (error) {
+            console.log('Erro ao buscar disciplinas:', error);
+            // Não mostrar alerta para não atrapalhar o fluxo de cadastro
+        }
+    };
+
+    // Buscar disciplinas quando o usuário seleciona "professor"
+    useEffect(() => {
+        if (userType === 'professor') {
+            fetchDisciplinas();
+        }
+    }, [userType]);
+
+    // Toggle seleção de disciplina
+    const toggleDisciplina = (disciplinaId: number) => {
+        setDisciplinasSelecionadas(prev => 
+            prev.includes(disciplinaId)
+                ? prev.filter(id => id !== disciplinaId)
+                : [...prev, disciplinaId]
+        );
+    };
 
     const validateForm = () => {
         if (!nome.trim()) {
@@ -69,8 +106,8 @@ export default function SignUp() {
 
         // Validações específicas por tipo
         if (userType === 'professor') {
-            if (!disciplina.trim()) {
-                Alert.alert('Erro', 'Por favor, digite sua disciplina');
+            if (disciplinasSelecionadas.length === 0) {
+                Alert.alert('Erro', 'Por favor, selecione pelo menos uma disciplina');
                 return false;
             }
             if (!formacao.trim()) {
@@ -105,7 +142,8 @@ export default function SignUp() {
                 email,
                 password,
                 tipo: userType!,
-                disciplina: userType === 'professor' ? disciplina : undefined,
+                disciplinas: userType === 'professor' ? disciplinasSelecionadas : undefined, // Enviar IDs das disciplinas
+                disciplina: userType === 'professor' ? disciplina : undefined, // Manter para compatibilidade
                 formacao: userType === 'professor' ? formacao : undefined,
                 idade: userType === 'aluno' ? parseInt(idade) : undefined,
                 turma: userType === 'aluno' ? turma || undefined : undefined,
@@ -335,18 +373,42 @@ export default function SignUp() {
                             {userType === 'professor' && (
                                 <>
                                     <View style={styles.inputWrapper}>
-                                        <View style={styles.inputContainer}>
+                                        <TouchableOpacity
+                                            style={styles.inputContainer}
+                                            onPress={() => setModalDisciplinasVisible(true)}
+                                        >
                                             <Feather name="book" size={20} color="#666" style={styles.inputIcon} />
-                                            <TextInput
-                                                placeholder='Disciplina principal'
-                                                placeholderTextColor='#999'
-                                                style={styles.input}
-                                                value={disciplina}
-                                                onChangeText={setDisciplina}
-                                                autoCapitalize="words"
-                                            />
-                                        </View>
+                                            <Text style={[
+                                                styles.input, 
+                                                styles.disciplinasText,
+                                                disciplinasSelecionadas.length === 0 && styles.placeholderText
+                                            ]}>
+                                                {disciplinasSelecionadas.length === 0 
+                                                    ? 'Selecione suas disciplinas' 
+                                                    : `${disciplinasSelecionadas.length} disciplina${disciplinasSelecionadas.length > 1 ? 's' : ''} selecionada${disciplinasSelecionadas.length > 1 ? 's' : ''}`
+                                                }
+                                            </Text>
+                                            <Feather name="chevron-right" size={20} color="#666" />
+                                        </TouchableOpacity>
                                     </View>
+
+                                    {/* Mostrar disciplinas selecionadas */}
+                                    {disciplinasSelecionadas.length > 0 && (
+                                        <View style={styles.disciplinasSelecionadasContainer}>
+                                            <Text style={styles.disciplinasSelecionadasTitle}>Disciplinas selecionadas:</Text>
+                                            <View style={styles.disciplinasTagsContainer}>
+                                                {disciplinasSelecionadas.map((disciplinaId) => {
+                                                    const disciplina = todasDisciplinas.find(d => d.id === disciplinaId);
+                                                    if (!disciplina) return null;
+                                                    return (
+                                                        <View key={disciplinaId} style={styles.disciplinaTag}>
+                                                            <Text style={styles.disciplinaTagText}>{disciplina.nome}</Text>
+                                                        </View>
+                                                    );
+                                                })}
+                                            </View>
+                                        </View>
+                                    )}
 
                                     <View style={styles.inputWrapper}>
                                         <View style={styles.inputContainer}>
@@ -448,6 +510,83 @@ export default function SignUp() {
                     </TouchableOpacity>
                 </View>
             </ScrollView>
+
+            {/* Modal de Seleção de Disciplinas */}
+            <Modal
+                visible={modalDisciplinasVisible}
+                animationType="slide"
+                presentationStyle="pageSheet"
+            >
+                <View style={styles.modalContainer}>
+                    <View style={styles.modalHeader}>
+                        <Text style={styles.modalTitle}>Selecionar Disciplinas</Text>
+                        <TouchableOpacity
+                            style={styles.modalCloseButton}
+                            onPress={() => setModalDisciplinasVisible(false)}
+                        >
+                            <Feather name="x" size={24} color="#fff" />
+                        </TouchableOpacity>
+                    </View>
+
+                    <ScrollView style={styles.modalContent}>
+                        <Text style={styles.modalSectionTitle}>
+                            Selecione as disciplinas que você leciona:
+                        </Text>
+                        
+                        {todasDisciplinas.map((disciplina) => {
+                            const isSelected = disciplinasSelecionadas.includes(disciplina.id);
+                            
+                            return (
+                                <TouchableOpacity
+                                    key={disciplina.id}
+                                    style={styles.disciplinaItem}
+                                    onPress={() => toggleDisciplina(disciplina.id)}
+                                >
+                                    <View style={styles.checkboxContainer}>
+                                        <View style={[
+                                            styles.checkbox,
+                                            isSelected && styles.checkboxSelected
+                                        ]}>
+                                            {isSelected && (
+                                                <Feather name="check" size={16} color="#fff" />
+                                            )}
+                                        </View>
+                                        <Text style={styles.disciplinaNome}>
+                                            {disciplina.nome}
+                                        </Text>
+                                    </View>
+                                </TouchableOpacity>
+                            );
+                        })}
+
+                        {todasDisciplinas.length === 0 && (
+                            <View style={styles.emptyContainer}>
+                                <Text style={styles.emptyText}>
+                                    Nenhuma disciplina disponível no momento.
+                                </Text>
+                            </View>
+                        )}
+                    </ScrollView>
+
+                    <View style={styles.modalActions}>
+                        <TouchableOpacity
+                            style={[styles.modalButton, styles.cancelButton]}
+                            onPress={() => setModalDisciplinasVisible(false)}
+                        >
+                            <Text style={styles.cancelButtonText}>Cancelar</Text>
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity
+                            style={[styles.modalButton, styles.saveButton]}
+                            onPress={() => setModalDisciplinasVisible(false)}
+                        >
+                            <Text style={styles.saveButtonText}>
+                                Confirmar ({disciplinasSelecionadas.length})
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </KeyboardAvoidingView>
     );
 }
@@ -597,5 +736,155 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 18,
         fontWeight: 'bold',
+    },
+    // Estilos para seleção de disciplinas
+    disciplinasText: {
+        flex: 1,
+        fontSize: 16,
+        color: '#333',
+    },
+    placeholderText: {
+        color: '#999',
+    },
+    disciplinasSelecionadasContainer: {
+        backgroundColor: '#f8f9ff',
+        padding: 15,
+        borderRadius: 12,
+        marginBottom: 20,
+        borderWidth: 1,
+        borderColor: '#e3f2fd',
+    },
+    disciplinasSelecionadasTitle: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#191970',
+        marginBottom: 10,
+    },
+    disciplinasTagsContainer: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+    },
+    disciplinaTag: {
+        backgroundColor: '#191970',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 15,
+        marginRight: 8,
+        marginBottom: 8,
+    },
+    disciplinaTagText: {
+        color: '#fff',
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    // Estilos do modal
+    modalContainer: {
+        flex: 1,
+        backgroundColor: '#f5f5f5',
+    },
+    modalHeader: {
+        backgroundColor: '#191970',
+        paddingTop: 60,
+        paddingBottom: 20,
+        paddingHorizontal: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#fff',
+        flex: 1,
+        textAlign: 'center',
+    },
+    modalCloseButton: {
+        padding: 5,
+    },
+    modalContent: {
+        flex: 1,
+        padding: 20,
+    },
+    modalSectionTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#333',
+        marginBottom: 20,
+    },
+    disciplinaItem: {
+        backgroundColor: '#fff',
+        marginBottom: 12,
+        padding: 16,
+        borderRadius: 12,
+        shadowColor: '#000',
+        shadowOpacity: 0.1,
+        shadowOffset: { width: 0, height: 2 },
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    checkboxContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    checkbox: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        borderWidth: 2,
+        borderColor: '#ddd',
+        marginRight: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    checkboxSelected: {
+        backgroundColor: '#4CAF50',
+        borderColor: '#4CAF50',
+    },
+    disciplinaNome: {
+        fontSize: 16,
+        color: '#333',
+        flex: 1,
+    },
+    emptyContainer: {
+        alignItems: 'center',
+        padding: 40,
+    },
+    emptyText: {
+        color: '#666',
+        fontSize: 16,
+        textAlign: 'center',
+    },
+    modalActions: {
+        flexDirection: 'row',
+        padding: 20,
+        gap: 12,
+        backgroundColor: '#fff',
+        borderTopWidth: 1,
+        borderTopColor: '#e0e0e0',
+    },
+    modalButton: {
+        flex: 1,
+        padding: 16,
+        borderRadius: 12,
+        alignItems: 'center',
+    },
+    cancelButton: {
+        backgroundColor: '#f8f9fa',
+        borderWidth: 1,
+        borderColor: '#dee2e6',
+    },
+    cancelButtonText: {
+        color: '#6c757d',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    saveButton: {
+        backgroundColor: '#4CAF50',
+    },
+    saveButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '600',
     },
 });

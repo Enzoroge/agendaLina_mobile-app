@@ -35,6 +35,7 @@ type SignUpProps = {
     password: string,
     tipo: 'professor' | 'aluno' | 'responsavel',
     disciplina?: string,
+    disciplinas?: number[], // Array de IDs das disciplinas selecionadas
     formacao?: string,
     idade?: number,
     turma?: string,
@@ -118,7 +119,7 @@ export function AuthProvider({children}: AuthProviderProps){
         }
     }
 
-    async function signUp({nome, email, password, tipo, disciplina, formacao, idade, turma, telefone, endereco, alunoId}: SignUpProps){
+    async function signUp({nome, email, password, tipo, disciplina, disciplinas, formacao, idade, turma, telefone, endereco, alunoId}: SignUpProps){
         setLogingAuth(true)
 
         try {
@@ -162,7 +163,59 @@ export function AuthProvider({children}: AuthProviderProps){
                     ...(formacao && { formacao })
                 };
                 console.log('Dados do professor a serem enviados:', professorData);
-                await api.post('/professor', professorData);
+                const professorResponse = await api.post('/professor', professorData);
+                console.log('Resposta completa da criação do professor:', professorResponse.data);
+                
+                // Se disciplinas foram selecionadas, criar as associações
+                if (disciplinas && disciplinas.length > 0) {
+                    console.log('Iniciando associação de disciplinas...');
+                    console.log('Disciplinas a serem associadas:', disciplinas);
+                    console.log('Resposta do professor:', JSON.stringify(professorResponse.data, null, 2));
+                    
+                    try {
+                        // Tentar diferentes formas de extrair o ID do professor
+                        let professorId = null;
+                        
+                        if (professorResponse.data.id) {
+                            professorId = professorResponse.data.id;
+                            console.log('Professor ID encontrado em data.id:', professorId);
+                        } else if (professorResponse.data.professor?.id) {
+                            professorId = professorResponse.data.professor.id;
+                            console.log('Professor ID encontrado em data.professor.id:', professorId);
+                        } else if (professorResponse.data.createProfessor?.id) {
+                            professorId = professorResponse.data.createProfessor.id;
+                            console.log('Professor ID encontrado em data.createProfessor.id:', professorId);
+                        }
+                        
+                        console.log('Professor ID final extraído:', professorId);
+                        
+                        if (professorId) {
+                            const associacaoData = {
+                                professorId: professorId,
+                                disciplinaId: disciplinas
+                            };
+                            
+                            console.log('Dados da associação a serem enviados:', associacaoData);
+                            console.log('Fazendo chamada para /associar-professor-disciplina...');
+                            
+                            const associacaoResponse = await api.post('/associar-professor-disciplina', associacaoData);
+                            
+                            console.log('Resposta da associação:', associacaoResponse.data);
+                            console.log('Disciplinas associadas com sucesso!');
+                        } else {
+                            console.error('ID do professor não encontrado na resposta!');
+                            console.error('Estrutura da resposta:', Object.keys(professorResponse.data));
+                        }
+                    } catch (error: any) {
+                        console.error('=== ERRO AO ASSOCIAR DISCIPLINAS ===');
+                        console.error('Erro completo:', error);
+                        console.error('Status do erro:', error.response?.status);
+                        console.error('Dados do erro:', error.response?.data);
+                        console.error('Mensagem do erro:', error.message);
+                        console.error('=====================================');
+                        // Não interromper o cadastro se a associação falhar
+                    }
+                }
                 
             } else if (tipo === 'aluno') {
                 const alunoData = {

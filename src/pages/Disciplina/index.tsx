@@ -9,10 +9,16 @@ import RoleProtection from '../../components/RoleProtection';
 type Disciplina = {
   id: number;
   nome: string;
-  professor: string;
+  professor: Professor[] | Professor | string | null;
   turma: string[];
   atividades: string[];
 };
+
+type Professor = {
+  id: number;
+  nome: string;
+};  
+   
 
 export default function Disciplina() {
   const { user } = useContext(AuthContext);
@@ -24,12 +30,25 @@ export default function Disciplina() {
     try {
       const response = await api.get('/disciplinas');
       console.log('Resposta da API disciplinas:', response.data);
+      console.log('Tipo da resposta:', typeof response.data);
       
       // Verificar se response.data é um array válido
       if (Array.isArray(response.data)) {
+        // Log detalhado da primeira disciplina para debug
+        if (response.data.length > 0) {
+          console.log('Primeira disciplina completa:', JSON.stringify(response.data[0], null, 2));
+          console.log('Professor da primeira disciplina:', response.data[0].professor);
+          console.log('Tipo do professor:', typeof response.data[0].professor);
+          console.log('É array?:', Array.isArray(response.data[0].professor));
+          console.log('Propriedades do professor:', Object.keys(response.data[0].professor || {}));
+        }
         setDisciplinas(response.data);
+      } else if (response.data && response.data.disciplinas) {
+        // Talvez a API retorne { disciplinas: [...] }
+        console.log('API retornou estrutura com disciplinas:', response.data);
+        setDisciplinas(response.data.disciplinas);
       } else {
-        console.log('Dados não são um array válido');
+        console.log('Dados não são um array válido, estrutura:', response.data);
         setDisciplinas([]);
       }
     } catch (error: any) {
@@ -88,7 +107,21 @@ Alunos podem acessar apenas os avisos."
               {item.professor && (
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>👨‍🏫 Professor:</Text>
-                  <Text style={styles.professorNome}>{item.professor}</Text>
+                  <View style={styles.debugContainer}>
+                    <Text style={styles.debugText}>Debug Professor:</Text>
+                    <Text style={styles.debugText}>Tipo: {typeof item.professor}</Text>
+                    <Text style={styles.debugText}>É array: {Array.isArray(item.professor) ? 'Sim' : 'Não'}</Text>
+                    <Text style={styles.debugText}>Conteúdo: {JSON.stringify(item.professor)}</Text>
+                  </View>
+                  {Array.isArray(item.professor) && item.professor.length > 0 ? (
+                    <Text style={styles.professorNome}>{item.professor[0]?.nome || 'Nome não encontrado'}</Text>
+                  ) : typeof item.professor === 'string' ? (
+                    <Text style={styles.professorNome}>{item.professor}</Text>
+                  ) : typeof item.professor === 'object' && !Array.isArray(item.professor) && (item.professor as Professor)?.nome ? (
+                    <Text style={styles.professorNome}>{(item.professor as Professor).nome}</Text>
+                  ) : (
+                    <Text style={styles.professorNome}>Professor não identificado</Text>
+                  )}
                 </View>
               )}
 
@@ -305,5 +338,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#999",
     textAlign: "center",
+  },
+  debugContainer: {
+    backgroundColor: "#fff3cd",
+    padding: 8,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#ffeaa7",
+    marginBottom: 8,
+  },
+  debugText: {
+    fontSize: 10,
+    color: "#856404",
+    fontFamily: "monospace",
   },
 });

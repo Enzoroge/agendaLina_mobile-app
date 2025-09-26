@@ -6,6 +6,7 @@ import { AuthContext } from "../contexts/AuthContext";
 
 import Dashboard from "../pages/Dashboard";
 import Avisos from "../pages/Avisos";
+import MenuAdmin from "../pages/MenuAdmin";
 import Professores from "../pages/Professores";
 import Responsaveis from "../pages/Responsaveis";
 import Alunos from "../pages/Alunos";
@@ -15,6 +16,7 @@ import Disciplina from "../pages/Disciplina";
 // Telas de criação
 import CriarResponsavel from "../pages/Responsaveis/criarResponsavel";
 import CriarAviso from "../pages/Avisos/criarAviso";
+import CreateDisciplina from "../pages/Disciplina/createDisciplina";
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -48,6 +50,17 @@ function TabNavigator() {
         }}
       />
       <Tab.Screen
+        name="CreateDisciplina"
+        component={CreateDisciplina}
+        options={{
+            //   headerShown: false,
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="plus" size={size} color={color} />
+          ),
+          tabBarLabel: "Nova Disciplina",
+        }}
+      />
+      <Tab.Screen
         name="Avisos"
         component={Avisos}
         options={{
@@ -59,62 +72,17 @@ function TabNavigator() {
         }}
       />
       
-      {/* Apenas não-alunos podem ver essas telas */}
+      {/* Apenas não-alunos podem ver o menu administrativo */}
       {!isAluno && (
-        <>
-          <Tab.Screen
-            name="Professores"
-            component={Professores}
-            options={{
-                //   headerShown: false,
-              tabBarIcon: ({ color, size }) => (
-                <Feather name="user-check" size={size} color={color} />
-              ),
-            }}
-          />
-          <Tab.Screen
-            name="Alunos"
-            component={Alunos}
-            options={{
-                //   headerShown: false,
-              tabBarIcon: ({ color, size }) => (
-                <Feather name="user" size={size} color={color} />
-              ),
-            }}
-          />
-          <Tab.Screen
-            name="Responsáveis"
-            component={Responsaveis}
-            options={{
-                //   headerShown: false,
-              tabBarIcon: ({ color, size }) => (
-                <Feather name="user-x" size={size} color={color} />
-              ),
-            }}
-          />
-          <Tab.Screen
-            name="Turmas"
-            component={Turmas}
-            options={{
-                //   headerShown: false,
-              tabBarIcon: ({ color, size }) => (
-                <Feather name="users" size={size} color={color} />
-              ),
-            }}
-            
-          />
-          <Tab.Screen
-            name="Disciplina"
-            component={Disciplina}
-            options={{
-                //   headerShown: false,
-              tabBarIcon: ({ color, size }) => (
-                <Feather name="book" size={size} color={color} />
-              ),
-            }}
-            
-          />
-        </>
+        <Tab.Screen
+          name="Menu"
+          component={MenuAdmin}
+          options={{
+            tabBarIcon: ({ color, size }) => (
+              <Feather name="grid" size={size} color={color} />
+            ),
+          }}
+        />
       )}
     </Tab.Navigator>
   );
@@ -124,6 +92,55 @@ export default function AppRoutes() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="MainTabs" component={TabNavigator} />
+      
+      {/* Telas administrativas */}
+      <Stack.Screen 
+        name="Professores" 
+        component={Professores}
+        options={{
+          headerShown: true,
+          title: "Professores",
+          headerBackTitle: "Voltar"
+        }}
+      />
+      <Stack.Screen 
+        name="Alunos" 
+        component={Alunos}
+        options={{
+          headerShown: true,
+          title: "Alunos",
+          headerBackTitle: "Voltar"
+        }}
+      />
+      <Stack.Screen 
+        name="Responsaveis" 
+        component={Responsaveis}
+        options={{
+          headerShown: true,
+          title: "Responsáveis",
+          headerBackTitle: "Voltar"
+        }}
+      />
+      <Stack.Screen 
+        name="Turmas" 
+        component={Turmas}
+        options={{
+          headerShown: true,
+          title: "Turmas",
+          headerBackTitle: "Voltar"
+        }}
+      />
+      <Stack.Screen 
+        name="Disciplina" 
+        component={Disciplina}
+        options={{
+          headerShown: true,
+          title: "Disciplinas",
+          headerBackTitle: "Voltar"
+        }}
+      />
+
+      {/* Telas de criação */}
       <Stack.Screen 
         name="CriarResponsavel" 
         component={CriarResponsavel} 
