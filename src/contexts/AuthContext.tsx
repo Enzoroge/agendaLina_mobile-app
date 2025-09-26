@@ -236,7 +236,7 @@ export function AuthProvider({children}: AuthProviderProps){
                     ...(endereco && { endereco })
                 };
                 
-                // Se alunoId foi fornecido, inclua-o
+                // Se alunoId foi fornecido, inclua-o (opcional para futuras implementações)
                 if (alunoId) {
                     responsavelData.alunoId = alunoId;
                 }
@@ -246,12 +246,39 @@ export function AuthProvider({children}: AuthProviderProps){
                 try {
                     await api.post('/responsavel', responsavelData);
                 } catch (responsavelError: any) {
-                    // Se o erro for sobre alunoId obrigatório, lance uma mensagem específica
-                    if (responsavelError.response?.data?.message?.includes('alunoId')) {
-                        throw new Error('Para criar um responsável, é necessário associá-lo a um aluno. Esta funcionalidade será implementada em breve.');
+                    console.log('Erro ao criar responsável:', responsavelError);
+                    console.log('Response data:', responsavelError.response?.data);
+                    console.log('Status code:', responsavelError.response?.status);
+                    
+                    // Se o erro for sobre alunoId obrigatório, tente criar sem esse campo
+                    if (responsavelError.response?.data?.message?.includes('alunoId') || 
+                        responsavelError.response?.data?.error?.includes('alunoId')) {
+                        
+                        console.log('Tentativa de criar responsável sem alunoId devido ao erro:', responsavelError.response?.data);
+                        
+                        // Tenta novamente sem o alunoId
+                        const responsavelDataSemAluno = {
+                            userId: userIdNumber,
+                            nome,
+                            email,
+                            ...(telefone && { telefone }),
+                            ...(endereco && { endereco }),
+                            alunoId: null // Explicitamente enviar null se o backend aceitar
+                        };
+                        
+                        console.log('Tentando criar responsável sem alunoId:', responsavelDataSemAluno);
+                        
+                        try {
+                            await api.post('/responsavel', responsavelDataSemAluno);
+                            console.log('Responsável criado com sucesso sem alunoId');
+                        } catch (segundoErro: any) {
+                            console.error('Segundo erro ao criar responsável:', segundoErro);
+                            throw new Error('Não foi possível criar a conta de responsável. Entre em contato com o administrador.');
+                        }
+                    } else {
+                        // Re-lance outros erros
+                        throw responsavelError;
                     }
-                    // Re-lance outros erros
-                    throw responsavelError;
                 }
             }
 
