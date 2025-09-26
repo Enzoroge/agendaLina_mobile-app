@@ -30,38 +30,129 @@ export default function Dashboard() {
   useFocusEffect(
     React.useCallback(() => {
       async function fetchMinhasTurmas() {
+        console.log('=== DEBUG DASHBOARD TURMAS ===');
+        console.log('Tipo de usuário:', user.role);
+        console.log('ID do usuário:', user.id);
+        console.log('isAluno:', isAluno);
+        console.log('isProfessor:', isProfessor);
+        
         try {
           let response;
           
           if (isAluno) {
             // Para aluno: busca apenas a turma em que está matriculado
-            response = await api.get(`/alunos/${user.id}`);
-            if (response.data.turma) {
-              setTurmas([response.data.turma]);
-            } else {
+            const endpoint = `/alunos/${user.id}`;
+            console.log('Tentando endpoint de ALUNO:', endpoint);
+            
+            try {
+              response = await api.get(endpoint);
+              console.log('✅ Sucesso - Resposta para aluno:', response.data);
+              
+              if (response.data && response.data.turma) {
+                setTurmas([response.data.turma]);
+                console.log('✅ Turma do aluno definida:', [response.data.turma]);
+              } else {
+                setTurmas([]);
+                console.log('⚠️ Nenhuma turma encontrada para o aluno');
+              }
+            } catch (alunoError: any) {
+              console.log('❌ ERRO no endpoint de aluno:', endpoint);
+              console.log('Status:', alunoError.response?.status);
+              console.log('Message:', alunoError.response?.data?.message || alunoError.message);
+              
+              // Fallback: tentar endpoint alternativo ou não mostrar turmas
+              if (alunoError.response?.status === 404) {
+                console.log('🔄 Endpoint não encontrado, não exibindo turmas para aluno');
+              }
               setTurmas([]);
             }
+            
           } else if (isProfessor) {
             // Para professor: busca as turmas vinculadas a ele
-            response = await api.get(`/professores/${user.id}`);
-            if (response.data.turmas && response.data.turmas.length > 0) {
-              // A API retorna turmas no formato { turma: {...} }
-              const turmasVinculadas = response.data.turmas.map((t: any) => t.turma);
-              setTurmas(turmasVinculadas);
-            } else {
-              setTurmas([]);
+            const endpoint = `/professores/${user.id}`;
+            console.log('Tentando endpoint de PROFESSOR:', endpoint);
+            
+            try {
+              response = await api.get(endpoint);
+              console.log('✅ Sucesso - Resposta para professor:', response.data);
+              
+              if (response.data && response.data.turmas && response.data.turmas.length > 0) {
+                // A API retorna turmas no formato { turma: {...} }
+                const turmasVinculadas = response.data.turmas.map((t: any) => t.turma || t);
+                setTurmas(turmasVinculadas);
+                console.log('✅ Turmas do professor definidas:', turmasVinculadas);
+              } else {
+                setTurmas([]);
+                console.log('⚠️ Nenhuma turma encontrada para o professor');
+              }
+            } catch (professorError: any) {
+              console.log('❌ ERRO no endpoint de professor:', endpoint);
+              console.log('Status:', professorError.response?.status);
+              console.log('Message:', professorError.response?.data?.message || professorError.message);
+              
+              // Fallback: tentar endpoint alternativo
+              if (professorError.response?.status === 404) {
+                console.log('🔄 Endpoint /professores não encontrado, tentando /professor');
+                try {
+                  const fallbackEndpoint = `/professor/${user.id}`;
+                  response = await api.get(fallbackEndpoint);
+                  console.log('✅ Sucesso no fallback - Resposta:', response.data);
+                  
+                  // Adaptar resposta conforme estrutura
+                  if (response.data && response.data.turmas) {
+                    setTurmas(response.data.turmas);
+                  } else {
+                    setTurmas([]);
+                  }
+                } catch (fallbackError: any) {
+                  console.log('❌ Fallback também falhou:', fallbackError.message);
+                  setTurmas([]);
+                }
+              } else {
+                setTurmas([]);
+              }
             }
+            
           } else {
             // Para outros usuários (admin, secretaria): mostra todas as turmas
-            response = await api.get("/turmas");
-            setTurmas(response.data || []);
+            const endpoint = '/turmas';
+            console.log('Tentando endpoint ADMIN/OUTROS:', endpoint);
+            
+            try {
+              response = await api.get(endpoint);
+              console.log('✅ Sucesso - Resposta para admin/outros:', response.data);
+              setTurmas(response.data || []);
+              console.log('✅ Todas as turmas definidas:', response.data || []);
+            } catch (adminError: any) {
+              console.log('❌ ERRO no endpoint de turmas:', endpoint);
+              console.log('Status:', adminError.response?.status);
+              console.log('Message:', adminError.response?.data?.message || adminError.message);
+              
+              // Para admins, não mostrar turmas se o endpoint não existir
+              if (adminError.response?.status === 404) {
+                console.log('🔄 Endpoint /turmas não encontrado, ocultando seção de turmas');
+              }
+              setTurmas([]);
+            }
           }
-        } catch (error) {
-          console.log("Erro ao listar turmas:", error);
+          
+          console.log('=== FIM DEBUG DASHBOARD TURMAS ===');
+          
+        } catch (error: any) {
+          console.log('=== ERRO GERAL INESPERADO ===');
+          console.log('Erro completo:', error);
+          console.log('===============================');
           setTurmas([]);
         }
       }
-      fetchMinhasTurmas();
+      
+      // Só executar se o usuário tem ID válido
+      if (user && user.id) {
+        fetchMinhasTurmas();
+      } else {
+        console.log('⚠️ Usuário sem ID válido, pulando busca de turmas');
+        setTurmas([]);
+      }
     }, [user.id, isAluno, isProfessor])
   );
 
