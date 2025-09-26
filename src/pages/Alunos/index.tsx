@@ -1,10 +1,13 @@
 import React, { useEffect, useState, useContext } from 'react';
 import { 
-  View, Text, FlatList, StyleSheet, Alert, RefreshControl
+  View, Text, FlatList, StyleSheet, Alert, RefreshControl, TouchableOpacity
 } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { api } from '../../services/api';
 import { AuthContext } from '../../contexts/AuthContext';
 import RoleProtection from '../../components/RoleProtection';
+import EditAlunoModal from './editAluno';
+import { useDeleteAluno } from './deleteAluno';
 
 type Aluno = {
   id: number;
@@ -14,10 +17,14 @@ type Aluno = {
   turmaId: number | null;
   responsavelId: number | null;
   situacao: string;
-  responsavel: {
+  responsavel?: {
     nome: string;
     telefone: string;
   } | null;
+  responsaveis?: {
+    nome: string;
+    telefone: string;
+  }[] | null;
   notas: {
     valor: number;
   }[];
@@ -34,6 +41,13 @@ export default function Alunos() {
   const { user } = useContext(AuthContext);
   const [alunos, setAlunos] = useState<Aluno[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Estados para edição
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [alunoSelecionado, setAlunoSelecionado] = useState<Aluno | null>(null);
+  
+  // Hook para deletar aluno
+  const executarDelete = useDeleteAluno();
 
   // Buscar alunos
   const fetchAlunos = async () => {
@@ -86,6 +100,34 @@ export default function Alunos() {
     }
   };
 
+  // Função para abrir modal de edição
+  const abrirEdicao = (aluno: Aluno) => {
+    setAlunoSelecionado(aluno);
+    setEditModalVisible(true);
+  };
+
+  // Função para fechar modal de edição
+  const fecharEdicao = () => {
+    setEditModalVisible(false);
+    setAlunoSelecionado(null);
+  };
+
+  // Função para confirmar e executar delete
+  const handleDelete = (aluno: Aluno) => {
+    executarDelete(aluno.id, fetchAlunos);
+  };
+
+  // Função para obter dados do responsável (normalizar responsavel vs responsaveis)
+  const getResponsavel = (aluno: Aluno) => {
+    if (aluno.responsavel) {
+      return aluno.responsavel;
+    }
+    if (aluno.responsaveis && aluno.responsaveis.length > 0) {
+      return aluno.responsaveis[0]; // Pega o primeiro responsável se vier como array
+    }
+    return null;
+  };
+
   return (
     <RoleProtection 
       allowedRoles={['PROFESSOR', 'ADMIN', 'SECRETARIA']}
@@ -101,6 +143,14 @@ Alunos podem acessar apenas os avisos."
           </Text>
         </View>
 
+        {/* Modal de Edição */}
+        <EditAlunoModal
+          visible={editModalVisible}
+          aluno={alunoSelecionado}
+          onClose={fecharEdicao}
+          onUpdate={fetchAlunos}
+        />
+
         {/* Lista de Alunos */}
         <FlatList
           data={alunos}
@@ -108,16 +158,37 @@ Alunos podem acessar apenas os avisos."
           renderItem={({ item }) => (
             <View style={styles.card}>
               <View style={styles.cardHeader}>
-                <View style={styles.alunoIcon}>
-                  <Text style={styles.alunoIconText}>👨‍🎓</Text>
+                <View style={styles.alunoLeft}>
+                  <View style={styles.alunoIcon}>
+                    <Text style={styles.alunoIconText}>👨‍🎓</Text>
+                  </View>
+                  <View style={styles.alunoInfo}>
+                    <Text style={styles.alunoName}>{item.nome}</Text>
+                    <Text style={styles.alunoId}>ID: {item.id}</Text>
+                  </View>
                 </View>
-                <View style={styles.alunoInfo}>
-                  <Text style={styles.alunoName}>{item.nome}</Text>
-                  <Text style={styles.alunoId}>ID: {item.id}</Text>
-                </View>
-                {/* Badge da Situação */}
-                <View style={[styles.situacaoBadge, { backgroundColor: getSituacaoColor(item.situacao) }]}>
-                  <Text style={styles.situacaoText}>{getSituacaoText(item.situacao)}</Text>
+                
+                <View style={styles.cardRight}>
+                  {/* Badge da Situação */}
+                  <View style={[styles.situacaoBadge, { backgroundColor: getSituacaoColor(item.situacao) }]}>
+                    <Text style={styles.situacaoText}>{getSituacaoText(item.situacao)}</Text>
+                  </View>
+                  
+                  <View style={styles.cardActions}>
+                    <TouchableOpacity
+                      style={styles.actionButton}
+                      onPress={() => abrirEdicao(item)}
+                    >
+                      <Feather name="edit-3" size={18} color="#007BFF" />
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.deleteButton]}
+                      onPress={() => handleDelete(item)}
+                    >
+                      <Feather name="trash-2" size={18} color="#DC3545" />
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
 
@@ -134,13 +205,13 @@ Alunos podem acessar apenas os avisos."
               )}
 
               {/* Responsável */}
-              {item.responsavel && (
+              {getResponsavel(item) && (
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>👨‍👩‍👧‍👦 Responsável:</Text>
                   <View style={styles.responsavelContainer}>
-                    <Text style={styles.responsavelNome}>{item.responsavel.nome}</Text>
-                    {item.responsavel.telefone && (
-                      <Text style={styles.responsavelTelefone}>📞 {item.responsavel.telefone}</Text>
+                    <Text style={styles.responsavelNome}>{getResponsavel(item)?.nome}</Text>
+                    {getResponsavel(item)?.telefone && (
+                      <Text style={styles.responsavelTelefone}>📞 {getResponsavel(item)?.telefone}</Text>
                     )}
                   </View>
                 </View>
@@ -161,7 +232,7 @@ Alunos podem acessar apenas os avisos."
               )}
 
               {/* Caso não tenha turma, responsável ou notas */}
-              {!item.turma && !item.responsavel && (!item.notas || item.notas.length === 0) && (
+              {!item.turma && !getResponsavel(item) && (!item.notas || item.notas.length === 0) && (
                 <View style={styles.emptySection}>
                   <Text style={styles.emptyText}>📋 Informações adicionais não disponíveis</Text>
                 </View>
@@ -240,6 +311,33 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 16,
+    justifyContent: 'space-between',
+  },
+  alunoLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  cardRight: {
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    gap: 8,
+  },
+  cardActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  actionButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  deleteButton: {
+    backgroundColor: '#fff5f5',
+    borderColor: '#fed7d7',
   },
   alunoIcon: {
     width: 50,
