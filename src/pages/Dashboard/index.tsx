@@ -65,42 +65,22 @@ export default function Dashboard() {
           let response;
           
           if (isAluno) {
-            // Para aluno: busca apenas a turma em que está matriculado
-            const endpoint = `/alunos/${user.id}`;
-            console.log('Tentando endpoint de ALUNO:', endpoint);
+            // Para aluno: backend não tem endpoint /alunos/{id}, usar alternativa
+            console.log('⚠️ Aluno: Endpoint /alunos/{id} não disponível no backend');
+            console.log('🔄 Usando estratégia alternativa para alunos');
             
-            try {
-              response = await api.get(endpoint);
-              console.log('✅ Sucesso - Resposta para aluno:', response.data);
-              
-              if (response.data && response.data.turma) {
-                setTurmas([response.data.turma]);
-                console.log('✅ Turma do aluno definida:', [response.data.turma]);
-              } else {
-                setTurmas([]);
-                console.log('⚠️ Nenhuma turma encontrada para o aluno');
-              }
-            } catch (alunoError: any) {
-              console.log('❌ ERRO no endpoint de aluno:', endpoint);
-              console.log('Status:', alunoError.response?.status);
-              console.log('Message:', alunoError.response?.data?.message || alunoError.message);
-              
-              // Fallback: tentar endpoint alternativo ou não mostrar turmas
-              if (alunoError.response?.status === 404) {
-                console.log('🔄 Endpoint não encontrado, não exibindo turmas para aluno');
-              }
-              setTurmas([]);
-            }
+            // Como não há endpoint específico, não mostrar turmas específicas para alunos
+            // Em implementação futura, isso poderia vir do contexto de autenticação
+            setTurmas([]);
+            console.log('📋 Turmas ocultadas para aluno (endpoint específico indisponível)');
             
           } else if (isProfessor) {
-            // Para professor: tentar múltiplas estratégias para obter turmas
+            // Para professor: usar endpoint correto /professor/{id} (sem 's')
             console.log('🔍 Verificando cache de endpoints...');
             
-            // Verificar cache primeiro
             if (isCacheValid() && endpointCache.professorEndpointAvailable === false) {
               console.log('📋 Cache indica que endpoints de professor não funcionam, indo direto para fallback');
               
-              // Ir direto para o fallback de todas as turmas
               try {
                 const allTurmasResponse = await api.get('/turmas');
                 console.log('✅ Sucesso direto no fallback de todas as turmas:', allTurmasResponse.data);
@@ -111,15 +91,15 @@ export default function Dashboard() {
                 setTurmas([]);
               }
             } else {
-              // Tentar endpoints normalmente
-              const endpoint = `/professores/${user.id}`;
-              console.log('Tentando endpoint de PROFESSOR:', endpoint);
+              // Tentar endpoint correto que existe no backend
+              const endpoint = `/professor/${user.id}`;
+              console.log('Tentando endpoint CORRETO de PROFESSOR:', endpoint);
               
               try {
                 response = await api.get(endpoint);
                 console.log('✅ Sucesso - Resposta para professor:', response.data);
                 
-                // Atualizar cache
+                // Atualizar cache como disponível
                 endpointCache.professorEndpointAvailable = true;
                 endpointCache.lastChecked = new Date();
                 
@@ -127,6 +107,10 @@ export default function Dashboard() {
                   const turmasVinculadas = response.data.turmas.map((t: any) => t.turma || t);
                   setTurmas(turmasVinculadas);
                   console.log('✅ Turmas do professor definidas:', turmasVinculadas);
+                } else if (response.data && Array.isArray(response.data)) {
+                  // Se retornar array direto
+                  setTurmas(response.data);
+                  console.log('✅ Turmas do professor (formato direto):', response.data);
                 } else {
                   setTurmas([]);
                   console.log('⚠️ Nenhuma turma encontrada para o professor');
@@ -137,40 +121,20 @@ export default function Dashboard() {
                 console.log('Message:', professorError.response?.data?.message || professorError.message);
                 
                 if (professorError.response?.status === 404) {
-                  console.log('🔄 Endpoint /professores não encontrado, tentando /professor');
+                  // Atualizar cache como indisponível
+                  endpointCache.professorEndpointAvailable = false;
+                  endpointCache.lastChecked = new Date();
+                  
+                  console.log('🔄 Professor específico não encontrado, tentando buscar todas as turmas como fallback');
                   try {
-                    const fallbackEndpoint = `/professor/${user.id}`;
-                    response = await api.get(fallbackEndpoint);
-                    console.log('✅ Sucesso no fallback - Resposta:', response.data);
-                    
-                    // Atualizar cache
-                    endpointCache.professorEndpointAvailable = true;
-                    endpointCache.lastChecked = new Date();
-                    
-                    if (response.data && response.data.turmas) {
-                      setTurmas(response.data.turmas);
-                    } else {
-                      setTurmas([]);
-                    }
-                  } catch (fallbackError: any) {
-                    console.log('❌ Fallback /professor também falhou:', fallbackError.response?.status);
-                    
-                    // Atualizar cache como indisponível
-                    endpointCache.professorEndpointAvailable = false;
-                    endpointCache.lastChecked = new Date();
-                    
-                    console.log('🔄 Tentando buscar todas as turmas como fallback final');
-                    try {
-                      const allTurmasResponse = await api.get('/turmas');
-                      console.log('✅ Sucesso no fallback de todas as turmas:', allTurmasResponse.data);
-                      setTurmas(allTurmasResponse.data || []);
-                      console.log('✅ Exibindo todas as turmas para professor como fallback');
-                    } catch (finalError: any) {
-                      console.log('❌ Todos os fallbacks falharam para professor');
-                      console.log('Status final:', finalError.response?.status);
-                      console.log('🔄 Definindo estado vazio para professor - endpoints indisponíveis');
-                      setTurmas([]);
-                    }
+                    const allTurmasResponse = await api.get('/turmas');
+                    console.log('✅ Sucesso no fallback de todas as turmas:', allTurmasResponse.data);
+                    setTurmas(allTurmasResponse.data || []);
+                    console.log('✅ Exibindo todas as turmas para professor como fallback');
+                  } catch (finalError: any) {
+                    console.log('❌ Fallback final também falhou para professor');
+                    console.log('Status final:', finalError.response?.status);
+                    setTurmas([]);
                   }
                 } else {
                   setTurmas([]);
