@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect, useState, useRef } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions, FlatList, ScrollView } from "react-native";
 import { AuthContext } from "../../contexts/AuthContext";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
@@ -40,18 +40,20 @@ export default function Dashboard() {
   const [turmas, setTurmas] = useState<Turma[]>([]);
   const [turmasLoading, setTurmasLoading] = useState(false);
   const [turmasError, setTurmasError] = useState<string | null>(null);
+  const isLoadingRef = useRef(false); // Ref para controle de loading
   const isAluno = user.role === 'ALUNO';
   const isProfessor = user.role === 'PROFESSOR';
   
   useFocusEffect(
     React.useCallback(() => {
       async function fetchMinhasTurmas() {
-        // Evitar múltiplas chamadas simultâneas
-        if (turmasLoading) {
-          console.log('⏳ Já carregando turmas, pulando nova chamada');
+        // Evitar múltiplas chamadas simultâneas usando ref
+        if (isLoadingRef.current) {
+          console.log('⏳ Já carregando turmas (ref), pulando nova chamada');
           return;
         }
         
+        isLoadingRef.current = true;
         setTurmasLoading(true);
         setTurmasError(null);
         
@@ -175,18 +177,22 @@ export default function Dashboard() {
           setTurmasError('Erro inesperado ao carregar turmas');
         } finally {
           setTurmasLoading(false);
+          isLoadingRef.current = false; // Resetar ref no finally
         }
       }
       
-      // Só executar se o usuário tem ID válido
-      if (user && user.id) {
+      // Só executar se o usuário tem ID válido e não está carregando
+      if (user && user.id && !isLoadingRef.current) {
         fetchMinhasTurmas();
-      } else {
+      } else if (!user || !user.id) {
         console.log('⚠️ Usuário sem ID válido, pulando busca de turmas');
         setTurmas([]);
         setTurmasLoading(false);
+        isLoadingRef.current = false;
+      } else {
+        console.log('⏳ Já está carregando, pulando execução');
       }
-    }, [user.id, isAluno, isProfessor, turmasLoading])
+    }, [user.id, isAluno, isProfessor]) // Removido turmasLoading para evitar loop
   );
 
   return (
