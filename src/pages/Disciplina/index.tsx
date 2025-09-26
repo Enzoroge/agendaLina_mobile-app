@@ -1,10 +1,13 @@
 import React, { useEffect, useState, useContext } from 'react';
 import { 
-  View, Text, FlatList, StyleSheet, Alert, RefreshControl
+  View, Text, FlatList, StyleSheet, Alert, RefreshControl, TouchableOpacity, Modal, TextInput
 } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { api } from '../../services/api';
 import { AuthContext } from '../../contexts/AuthContext';
 import RoleProtection from '../../components/RoleProtection';
+import EditDisciplinaModal from './editDisciplina';
+import { useDeleteDisciplina } from './deleteDisciplina';
 
 type Disciplina = {
   id: number;
@@ -24,6 +27,16 @@ export default function Disciplina() {
   const { user } = useContext(AuthContext);
   const [disciplinas, setDisciplinas] = useState<Disciplina[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [novaDisciplina, setNovaDisciplina] = useState('');
+  const [loading, setLoading] = useState(false);
+  
+  // Estados para edição
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [disciplinaSelecionada, setDisciplinaSelecionada] = useState<Disciplina | null>(null);
+  
+  // Hook para deletar disciplina
+  const executarDelete = useDeleteDisciplina();
 
   // Buscar disciplinas
   const fetchDisciplinas = async () => {
@@ -68,6 +81,73 @@ export default function Disciplina() {
     setRefreshing(false);
   };
 
+  // Adicionar nova disciplina
+  const adicionarDisciplina = async () => {
+    if (!novaDisciplina.trim()) {
+      Alert.alert('Erro', 'Por favor, digite o nome da disciplina');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await api.post('/disciplina', {
+        nome: novaDisciplina.trim()
+      });
+      
+      console.log('Disciplina criada:', response.data);
+      
+      Alert.alert(
+        'Sucesso!', 
+        'Disciplina adicionada com sucesso',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              setModalVisible(false);
+              setNovaDisciplina('');
+              fetchDisciplinas(); // Recarregar lista
+            }
+          }
+        ]
+      );
+    } catch (error: any) {
+      console.log('Erro ao adicionar disciplina:', error);
+      
+      let errorMessage = 'Erro ao adicionar disciplina. Tente novamente.';
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.status === 409) {
+        errorMessage = 'Esta disciplina já existe.';
+      }
+      
+      Alert.alert('Erro', errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cancelarModal = () => {
+    setModalVisible(false);
+    setNovaDisciplina('');
+  };
+
+  // Função para abrir modal de edição
+  const abrirEdicao = (disciplina: Disciplina) => {
+    setDisciplinaSelecionada(disciplina);
+    setEditModalVisible(true);
+  };
+
+  // Função para fechar modal de edição
+  const fecharEdicao = () => {
+    setEditModalVisible(false);
+    setDisciplinaSelecionada(null);
+  };
+
+  // Função para lidar com exclusão
+  const handleDelete = (disciplina: Disciplina) => {
+    executarDelete(disciplina, fetchDisciplinas);
+  };
+
   useEffect(() => {
     fetchDisciplinas();
   }, []);
@@ -85,7 +165,78 @@ Alunos podem acessar apenas os avisos."
           <Text style={styles.headerSubtitle}>
             {disciplinas.length} {disciplinas.length === 1 ? 'disciplina' : 'disciplinas'} cadastradas
           </Text>
+          
+          {/* Botão Adicionar Disciplina */}
+          <TouchableOpacity 
+            style={styles.addButton}
+            onPress={() => setModalVisible(true)}
+          >
+            <Feather name="plus" size={20} color="#fff" />
+            <Text style={styles.addButtonText}>Nova Disciplina</Text>
+          </TouchableOpacity>
         </View>
+
+        {/* Modal Adicionar Disciplina */}
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={modalVisible}
+          onRequestClose={cancelarModal}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>📚 Nova Disciplina</Text>
+                <TouchableOpacity 
+                  style={styles.closeButton}
+                  onPress={cancelarModal}
+                >
+                  <Feather name="x" size={24} color="#666" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.modalBody}>
+                <Text style={styles.inputLabel}>Nome da Disciplina *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Ex: Matemática, Português, História..."
+                  placeholderTextColor="#999"
+                  value={novaDisciplina}
+                  onChangeText={setNovaDisciplina}
+                  autoCapitalize="words"
+                  autoFocus={true}
+                />
+
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity 
+                    style={[styles.modalButton, styles.cancelButton]}
+                    onPress={cancelarModal}
+                  >
+                    <Text style={styles.cancelButtonText}>Cancelar</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    style={[styles.modalButton, styles.confirmButton]}
+                    onPress={adicionarDisciplina}
+                    disabled={loading}
+                  >
+                    <Text style={styles.confirmButtonText}>
+                      {loading ? 'Adicionando...' : 'Adicionar'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Modal de Edição */}
+        <EditDisciplinaModal
+          visible={editModalVisible}
+          disciplina={disciplinaSelecionada}
+          onClose={fecharEdicao}
+          onUpdate={fetchDisciplinas}
+        />
 
         {/* Lista de Disciplinas */}
         <FlatList
@@ -94,12 +245,30 @@ Alunos podem acessar apenas os avisos."
           renderItem={({ item }) => (
             <View style={styles.card}>
               <View style={styles.cardHeader}>
-                <View style={styles.disciplinaIcon}>
-                  <Text style={styles.disciplinaIconText}>📖</Text>
+                <View style={styles.disciplinaLeft}>
+                  <View style={styles.disciplinaIcon}>
+                    <Text style={styles.disciplinaIconText}>📖</Text>
+                  </View>
+                  <View style={styles.disciplinaInfo}>
+                    <Text style={styles.disciplinaNome}>{item.nome}</Text>
+                    <Text style={styles.disciplinaId}>ID: {item.id}</Text>
+                  </View>
                 </View>
-                <View style={styles.disciplinaInfo}>
-                  <Text style={styles.disciplinaNome}>{item.nome}</Text>
-                  <Text style={styles.disciplinaId}>ID: {item.id}</Text>
+                
+                <View style={styles.cardActions}>
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => abrirEdicao(item)}
+                  >
+                    <Feather name="edit-3" size={18} color="#007BFF" />
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.deleteButton]}
+                    onPress={() => handleDelete(item)}
+                  >
+                    <Feather name="trash-2" size={18} color="#DC3545" />
+                  </TouchableOpacity>
                 </View>
               </View>
 
@@ -210,6 +379,111 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#e0e0e0',
     textAlign: 'center',
+    marginBottom: 20,
+  },
+  addButton: {
+    backgroundColor: '#4CAF50',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 25,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  addButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 8,
+  },
+  // Estilos do Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  closeButton: {
+    padding: 5,
+  },
+  modalBody: {
+    padding: 20,
+  },
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 12,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    fontSize: 16,
+    backgroundColor: '#f8f9fa',
+    marginBottom: 20,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+  },
+  confirmButton: {
+    backgroundColor: '#4CAF50',
+  },
+  cancelButtonText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  confirmButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   listContainer: {
     paddingHorizontal: 20,
@@ -233,6 +507,28 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 16,
+    justifyContent: 'space-between',
+  },
+  disciplinaLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  cardActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  actionButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  deleteButton: {
+    backgroundColor: '#fff5f5',
+    borderColor: '#fed7d7',
   },
   disciplinaIcon: {
     width: 50,

@@ -49,17 +49,7 @@ function TabNavigator() {
           ),
         }}
       />
-      <Tab.Screen
-        name="CreateDisciplina"
-        component={CreateDisciplina}
-        options={{
-            //   headerShown: false,
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="plus" size={size} color={color} />
-          ),
-          tabBarLabel: "Nova Disciplina",
-        }}
-      />
+
       <Tab.Screen
         name="Avisos"
         component={Avisos}
