@@ -35,15 +35,14 @@ export const deleteDisciplina = ({ disciplina, onDelete }: DeleteDisciplinaProps
     try {
       await api.delete(`/disciplina/${disciplina.id}`);
       
+      console.log('✅ Disciplina excluída com sucesso! Chamando onDelete...');
+      
+      // Chama onDelete imediatamente após sucesso
+      onDelete();
+      
       Alert.alert(
         'Sucesso',
-        'Disciplina excluída com sucesso!',
-        [
-          {
-            text: 'OK',
-            onPress: onDelete
-          }
-        ]
+        'Disciplina excluída com sucesso!'
       );
     } catch (error: any) {
       console.log('Erro ao excluir disciplina:', error);

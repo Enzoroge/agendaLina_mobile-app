@@ -40,10 +40,14 @@ export default function Disciplina() {
 
   // Buscar disciplinas
   const fetchDisciplinas = async () => {
+    console.log('🔄 Iniciando fetchDisciplinas...');
     try {
-      const response = await api.get('/disciplinas');
-      console.log('Resposta da API disciplinas:', response.data);
+      // Adiciona timestamp para evitar cache
+      const timestamp = new Date().getTime();
+      const response = await api.get(`/disciplinas?t=${timestamp}`);
+      console.log('✅ Resposta da API disciplinas:', response.data);
       console.log('Tipo da resposta:', typeof response.data);
+      console.log('Total de disciplinas:', response.data?.length);
       
       // Verificar se response.data é um array válido
       if (Array.isArray(response.data)) {

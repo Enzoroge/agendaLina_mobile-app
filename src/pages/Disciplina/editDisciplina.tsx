@@ -58,18 +58,15 @@ export default function EditDisciplinaModal({
         nome: nomeDisciplina.trim()
       });
 
+      console.log('✅ Disciplina atualizada com sucesso! Chamando onUpdate...');
+      
+      // Chama onUpdate imediatamente após sucesso
+      onUpdate();
+      onClose();
+      
       Alert.alert(
         'Sucesso', 
-        'Disciplina atualizada com sucesso!',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              onUpdate();
-              onClose();
-            }
-          }
-        ]
+        'Disciplina atualizada com sucesso!'
       );
 
     } catch (error) {
