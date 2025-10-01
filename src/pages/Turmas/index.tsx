@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { 
     View, 
     Text, 
@@ -10,6 +10,7 @@ import {
     ScrollView
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { api } from '../../services/api';
 
 type Aluno = {
@@ -42,18 +43,40 @@ type Turma = {
 
 
 
-export default function Turmas(){
+function Turmas(){
+    const navigation = useNavigation();
     const [turmas, setTurmas] = useState<Turma[]>([]);
     const [refreshing, setRefreshing] = useState(false);
     const [expandedCards, setExpandedCards] = useState<Set<number>>(new Set());
 
     const fetchTurmas = async () => {
         try {
-            const response = await api.get('/turmas');
-            setTurmas(response.data);
-        } catch (error) {
-            console.log('Erro ao buscar turmas:', error);
+            console.log('🔄 Carregando turmas...');
+            
+            // Tentar primeiro /turma (singular - padrão REST)
+            let response;
+            try {
+                response = await api.get('/turma');
+                console.log('✅ Sucesso com /turma:', response.data);
+            } catch (singularError) {
+                console.log('⚠️ /turma falhou, tentando /turmas...');
+                response = await api.get('/turmas');
+                console.log('✅ Sucesso com /turmas:', response.data);
+            }
+            
+            console.log('📊 Turmas carregadas:', {
+                total: response.data?.length || 0,
+                dados: response.data
+            });
+            setTurmas(Array.isArray(response.data) ? response.data : []);
+        } catch (error: any) {
+            console.error('❌ Erro ao buscar turmas:', {
+                message: error.message,
+                response: error.response?.data,
+                status: error.response?.status
+            });
             Alert.alert('Erro', 'Não foi possível carregar as turmas');
+            setTurmas([]);
         }
     }
 
@@ -75,9 +98,12 @@ export default function Turmas(){
         });
     };
     
-    useEffect(() => {
-        fetchTurmas();
-    }, [])
+    // Recarregar dados sempre que a tela ganha foco
+    useFocusEffect(
+        useCallback(() => {
+            fetchTurmas();
+        }, [])
+    );
 
 
     return(
@@ -88,6 +114,14 @@ export default function Turmas(){
                 <Text style={styles.headerSubtitle}>
                     {turmas.length} {turmas.length === 1 ? 'turma cadastrada' : 'turmas cadastradas'}
                 </Text>
+                
+                <TouchableOpacity 
+                    style={styles.addButton}
+                    onPress={() => navigation.navigate('AdicionarTurma' as never)}
+                >
+                    <Feather name="plus" size={20} color="#fff" />
+                    <Text style={styles.addButtonText}>Nova Turma</Text>
+                </TouchableOpacity>
             </View>
 
             {/* Lista de Turmas */}
@@ -391,5 +425,28 @@ const styles = StyleSheet.create({
         color: '#999',
         textAlign: 'center',
     },
+    addButton: {
+        backgroundColor: '#4CAF50',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 20,
+        borderRadius: 8,
+        marginTop: 15,
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 2,
+    },
+    addButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '600',
+        marginLeft: 8,
+    },
 })
+
+export default Turmas;
 

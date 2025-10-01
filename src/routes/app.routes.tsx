@@ -17,6 +17,7 @@ import Disciplina from "../pages/Disciplina";
 import CriarResponsavel from "../pages/Responsaveis/criarResponsavel";
 import CriarAviso from "../pages/Avisos/criarAviso";
 import CreateDisciplina from "../pages/Disciplina/createDisciplina";
+import AdicionarTurma from "../pages/Turmas/adicionarTurma";
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -146,6 +147,15 @@ export default function AppRoutes() {
         options={{
           headerShown: true,
           title: "Criar Aviso",
+          headerBackTitle: "Voltar"
+        }}
+      />
+      <Stack.Screen 
+        name="AdicionarTurma" 
+        component={AdicionarTurma} 
+        options={{
+          headerShown: false,
+          title: "Nova Turma",
           headerBackTitle: "Voltar"
         }}
       />
