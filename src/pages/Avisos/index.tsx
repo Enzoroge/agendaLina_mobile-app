@@ -7,7 +7,8 @@ import {
   TouchableOpacity,
   ScrollView,
   RefreshControl,
-  Alert
+  Alert,
+  TextInput
 } from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
@@ -22,11 +23,14 @@ type Aviso = {
   titulo: string;
   descricao: string;
   craidoEm: string;
+  criadoEm?: string; // Campo opcional caso o backend corrija o nome
 };
 
 export default function Avisos() {
   const { user } = useContext(AuthContext);
   const [avisos, setAvisos] = useState<Aviso[]>([]);
+  const [avisosFiltrados, setAvisosFiltrados] = useState<Aviso[]>([]);
+  const [termoPesquisa, setTermoPesquisa] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [expandedCards, setExpandedCards] = useState<Set<number>>(new Set());
   const [readAvisos, setReadAvisos] = useState<Set<number>>(new Set());
@@ -40,6 +44,29 @@ export default function Avisos() {
   const executarDelete = useDeleteAviso();
   
   const isAluno = user.role === 'ALUNO';
+
+  // Função para filtrar avisos por título ou data
+  const filtrarAvisos = (avisos: Aviso[], termo: string) => {
+    if (!termo.trim()) {
+      return avisos;
+    }
+
+    const termoLower = termo.toLowerCase().trim();
+    
+    return avisos.filter(aviso => {
+      // Busca no título
+      const tituloMatch = aviso.titulo.toLowerCase().includes(termoLower);
+      
+      // Busca na descrição
+      const descricaoMatch = aviso.descricao.toLowerCase().includes(termoLower);
+      
+      // Busca na data formatada
+      const dataFormatada = formatDate(aviso.criadoEm || aviso.craidoEm);
+      const dataMatch = dataFormatada.toLowerCase().includes(termoLower);
+      
+      return tituloMatch || descricaoMatch || dataMatch;
+    });
+  };
 
   // Carregar avisos lidos do AsyncStorage
   const loadReadAvisos = async () => {
@@ -122,9 +149,29 @@ export default function Avisos() {
       
       console.log('📢 Avisos carregados:', response.data.length);
       
+      // Debug: verificar estrutura do primeiro aviso
+      if (response.data.length > 0) {
+        const primeiroAviso = response.data[0];
+        console.log('🔍 Estrutura do primeiro aviso:', {
+          id: primeiroAviso.id,
+          titulo: primeiroAviso.titulo,
+          camposDeData: Object.keys(primeiroAviso).filter(key => 
+            key.toLowerCase().includes('cria') || 
+            key.toLowerCase().includes('data') || 
+            key.toLowerCase().includes('em')
+          ),
+          craidoEm: primeiroAviso.craidoEm,
+          criadoEm: primeiroAviso.criadoEm,
+          dataCompleta: primeiroAviso
+        });
+      }
+      
       // Ordena os avisos do mais recente para o mais antigo
       const avisosOrdenados = response.data.sort((a: Aviso, b: Aviso) => {
-        return new Date(b.craidoEm).getTime() - new Date(a.craidoEm).getTime();
+        // Tenta usar criadoEm primeiro, depois craidoEm como fallback
+        const dataA = a.criadoEm || a.craidoEm;
+        const dataB = b.criadoEm || b.craidoEm;
+        return new Date(dataB).getTime() - new Date(dataA).getTime();
       });
       setAvisos(avisosOrdenados);
     } catch (error) {
@@ -178,16 +225,44 @@ export default function Avisos() {
     }
   }, [user?.id]); // Só executa quando o user.id muda
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - date.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  // Effect para filtrar avisos quando o termo de pesquisa mudar
+  useEffect(() => {
+    const avisosFiltrados = filtrarAvisos(avisos, termoPesquisa);
+    setAvisosFiltrados(avisosFiltrados);
+    console.log('🔍 Filtro aplicado:', { 
+      termo: termoPesquisa, 
+      totalAvisos: avisos.length, 
+      avisosFiltrados: avisosFiltrados.length 
+    });
+  }, [termoPesquisa, avisos]);
 
-    if (diffDays === 1) return "Hoje";
-    if (diffDays === 2) return "Ontem";
-    if (diffDays <= 7) return `${diffDays - 1} dias atrás`;
-    return date.toLocaleDateString("pt-BR");
+  const formatDate = (dateString: string) => {
+    try {
+      // Verifica se a string da data é válida
+      if (!dateString || dateString === null || dateString === undefined) {
+        console.log('⚠️ Data inválida ou nula:', dateString);
+        return "Data não disponível";
+      }
+
+      const date = new Date(dateString);
+      
+      // Verifica se a data é válida
+      if (isNaN(date.getTime())) {
+        console.log('⚠️ Data inválida após conversão:', dateString, '→', date);
+        return "Data inválida";
+      }
+
+      // Sempre retorna a data formatada em português brasileiro
+      // Formato: dd/mm/aaaa
+      return date.toLocaleDateString("pt-BR", {
+        day: '2-digit',
+        month: '2-digit', 
+        year: 'numeric'
+      });
+    } catch (error) {
+      console.log('❌ Erro ao formatar data:', dateString, error);
+      return "Data inválida";
+    }
   };
 
   const toggleExpandCard = (cardId: number) => {
@@ -217,14 +292,14 @@ export default function Avisos() {
     return text && text.length > 100;
   };
 
-  // Calcular avisos não lidos
+  // Calcular avisos não lidos (considerando filtro)
   const getUnreadCount = () => {
-    return avisos.filter(aviso => !readAvisos.has(aviso.id)).length;
+    return avisosFiltrados.filter(aviso => !readAvisos.has(aviso.id)).length;
   };
 
-  // Calcular avisos lidos
+  // Calcular avisos lidos (considerando filtro)
   const getReadCount = () => {
-    return avisos.filter(aviso => readAvisos.has(aviso.id)).length;
+    return avisosFiltrados.filter(aviso => readAvisos.has(aviso.id)).length;
   };
 
   return (
@@ -233,8 +308,32 @@ export default function Avisos() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>📢 Avisos</Text>
         <Text style={styles.headerSubtitle}>
-          {avisos.length} {avisos.length === 1 ? 'aviso' : 'avisos'} disponíveis
+          {termoPesquisa ? 
+            `${avisosFiltrados.length} de ${avisos.length} avisos encontrados` :
+            `${avisos.length} ${avisos.length === 1 ? 'aviso' : 'avisos'} disponíveis`
+          }
         </Text>
+        
+        {/* Campo de Pesquisa */}
+        <View style={styles.searchContainer}>
+          <Feather name="search" size={16} color="#e0e0e0" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Buscar por título ou data..."
+            placeholderTextColor="#a0a0a0"
+            value={termoPesquisa}
+            onChangeText={setTermoPesquisa}
+            returnKeyType="search"
+          />
+          {termoPesquisa.length > 0 && (
+            <TouchableOpacity 
+              style={styles.clearButton}
+              onPress={() => setTermoPesquisa('')}
+            >
+              <Feather name="x" size={16} color="#e0e0e0" />
+            </TouchableOpacity>
+          )}
+        </View>
         
         {/* Contador de avisos não lidos */}
         <View style={styles.counterContainer}>
@@ -268,7 +367,7 @@ export default function Avisos() {
 
       {/* Lista de Avisos */}
       <FlatList
-        data={avisos}
+        data={avisosFiltrados}
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => {
           const isExpanded = expandedCards.has(item.id);
@@ -298,7 +397,7 @@ export default function Avisos() {
                       styles.cardDate,
                       isRead && styles.readText
                     ]}>
-                      {formatDate(item.craidoEm)}
+                      {formatDate(item.criadoEm || item.craidoEm)}
                     </Text>
                   </View>
                   
@@ -364,12 +463,17 @@ export default function Avisos() {
         }
         ListEmptyComponent={() => (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>📭</Text>
-            <Text style={styles.emptyTitle}>Nenhum aviso encontrado</Text>
+            <Text style={styles.emptyIcon}>{termoPesquisa ? "�" : "�📭"}</Text>
+            <Text style={styles.emptyTitle}>
+              {termoPesquisa ? "Nenhum aviso encontrado" : "Nenhum aviso disponível"}
+            </Text>
             <Text style={styles.emptySubtitle}>
-              {isAluno 
-                ? "Os avisos aparecerão aqui quando publicados" 
-                : "Que tal criar o primeiro aviso?"
+              {termoPesquisa 
+                ? `Nenhum aviso corresponde à busca "${termoPesquisa}"`
+                : (isAluno 
+                    ? "Os avisos aparecerão aqui quando publicados" 
+                    : "Que tal criar o primeiro aviso?"
+                  )
               }
             </Text>
           </View>
@@ -572,6 +676,31 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#999",
     textAlign: "center",
+  },
+  // Estilos para campo de pesquisa
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 20,
+    marginTop: 15,
+    paddingHorizontal: 15,
+    height: 40,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    color: '#fff',
+    fontSize: 14,
+    height: 40,
+  },
+  clearButton: {
+    padding: 4,
+    marginLeft: 8,
   },
   // Estilos para avisos lidos (esmaecidos)
   readCard: {
