@@ -12,12 +12,19 @@ import Responsaveis from "../pages/Responsaveis";
 import Alunos from "../pages/Alunos";
 import Turmas from "../pages/Turmas";
 import Disciplina from "../pages/Disciplina";
+import Atividades from "../pages/Atividades";
 
 // Telas de criação
 import CriarResponsavel from "../pages/Responsaveis/criarResponsavel";
 import CriarAviso from "../pages/Avisos/criarAviso";
 import CreateDisciplina from "../pages/Disciplina/createDisciplina";
 import AdicionarTurma from "../pages/Turmas/adicionarTurma";
+import CriarAtividades from "../pages/Atividades/criarAtividades";
+
+// Telas de edição/detalhes
+import EditTurma from "../pages/Turmas/editTurma";
+import DetalhesTurma from "../pages/Turmas/detalhesTurma";
+import EditAtividade from "../pages/Atividades/editAtividade";
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -130,6 +137,15 @@ export default function AppRoutes() {
           headerBackTitle: "Voltar"
         }}
       />
+      <Stack.Screen 
+        name="Atividades" 
+        component={Atividades}
+        options={{
+          headerShown: true,
+          title: "Atividades",
+          headerBackTitle: "Voltar"
+        }}
+      />
 
       {/* Telas de criação */}
       <Stack.Screen 
@@ -156,6 +172,42 @@ export default function AppRoutes() {
         options={{
           headerShown: false,
           title: "Nova Turma",
+          headerBackTitle: "Voltar"
+        }}
+      />
+      <Stack.Screen 
+        name="EditTurma" 
+        component={EditTurma} 
+        options={{
+          headerShown: false,
+          title: "Editar Turma",
+          headerBackTitle: "Voltar"
+        }}
+      />
+      <Stack.Screen 
+        name="DetalhesTurma" 
+        component={DetalhesTurma} 
+        options={{
+          headerShown: false,
+          title: "Detalhes da Turma",
+          headerBackTitle: "Voltar"
+        }}
+      />
+      <Stack.Screen 
+        name="CriarAtividades" 
+        component={CriarAtividades} 
+        options={{
+          headerShown: false,
+          title: "Nova Atividade",
+          headerBackTitle: "Voltar"
+        }}
+      />
+      <Stack.Screen 
+        name="EditAtividade" 
+        component={EditAtividade} 
+        options={{
+          headerShown: false,
+          title: "Editar Atividade",
           headerBackTitle: "Voltar"
         }}
       />

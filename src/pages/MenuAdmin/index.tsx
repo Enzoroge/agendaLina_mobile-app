@@ -59,6 +59,12 @@ export default function MenuAdmin() {
       onPress: () => navigation.navigate('Disciplina' as never),
       color: '#F44336',
     },
+    {
+      title: 'Atividades',
+      icon: 'clipboard' as keyof typeof Feather.glyphMap,
+      onPress: () => navigation.navigate('Atividades' as never),
+      color: '#607D8B',
+    },
   ];
 
   return (

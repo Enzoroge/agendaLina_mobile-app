@@ -1,0 +1,301 @@
+// Schema Prisma aprimorado para sistema escolar completo
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 Int      @id @default(autoincrement())
+  name               String
+  email              String   @unique
+  password           String
+  role               Role
+  mustChangePassword Boolean  @default(true)
+  ativo              Boolean  @default(true)
+
+  professor   Professor?
+  aluno       Aluno?
+  responsavel Responsavel?
+
+  avisosCriados Avisos[] @relation("AvisosCriados")
+
+  @@map("users")
+}
+
+// -------------------- TURMA --------------------
+model Turma {
+  id              Int                 @id @default(autoincrement())
+  nome            String
+  ano             Int
+  serie           String              // Ex: "6º Ano", "7º Ano", "1º EM"
+  turno           Turno               // MANHA, TARDE, NOITE
+  ativa           Boolean             @default(true)
+  
+  professores     TurmaProfessor[]    // N:N
+  alunos          Aluno[]
+  disciplinas     TurmaDisciplina[]   // N:N
+  
+  @@map("turmas")
+}
+
+// -------------------- PROFESSOR --------------------
+model Professor {
+  id              Int                     @id @default(autoincrement())
+  user            User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId          Int                     @unique
+  nome            String
+  telefone        String?
+  especialidade   String?                 // Área de especialização
+  ativo           Boolean                 @default(true)
+
+  turmas          TurmaProfessor[]        // N:N
+  disciplinas     TurmaDisciplina[]       // N:N
+  atividades      Atividade[]
+  notas           Nota[]
+
+  @@map("professores")
+}
+
+model TurmaProfessor {
+  turmaId       Int
+  professorId   Int
+  
+  turma         Turma     @relation(fields: [turmaId], references: [id], onDelete: Cascade)
+  professor     Professor @relation(fields: [professorId], references: [id], onDelete: Cascade)
+
+  @@id([turmaId, professorId])
+  @@map("turma_professores")
+}
+
+// -------------------- DISCIPLINA --------------------
+model Disciplina {
+  id              Int                 @id @default(autoincrement())
+  nome            String
+  codigo          String              @unique // Ex: MAT01, POR02
+  cargaHoraria    Int                 // Horas por semana
+  ativa           Boolean             @default(true)
+
+  turmas          TurmaDisciplina[]   // N:N
+  atividades      Atividade[]
+
+  @@map("disciplinas")
+}
+
+model TurmaDisciplina {
+  turmaId       Int
+  disciplinaId  Int
+  professorId   Int
+  
+  turma         Turma       @relation(fields: [turmaId], references: [id], onDelete: Cascade)
+  disciplina    Disciplina  @relation(fields: [disciplinaId], references: [id], onDelete: Cascade)
+  professor     Professor   @relation(fields: [professorId], references: [id], onDelete: Cascade)
+
+  @@id([turmaId, disciplinaId])
+  @@map("turma_disciplinas")
+}
+
+// -------------------- ALUNO --------------------
+model Aluno {
+  id              Int                 @id @default(autoincrement())
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId          Int                 @unique
+  nome            String
+  dataNascimento  DateTime?
+  matricula       String              @unique // Número de matrícula
+  turma           Turma?              @relation(fields: [turmaId], references: [id])
+  turmaId         Int?
+  ativo           Boolean             @default(true)
+
+  notas           Nota[]
+  medias          MediaBimestre[]
+  mediaFinal      MediaFinal[]
+  responsaveis    AlunoResponsavel[]
+
+  @@map("alunos")
+}
+
+// -------------------- RESPONSÁVEL --------------------
+model Responsavel {
+  id              Int                 @id @default(autoincrement())
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId          Int                 @unique
+  nome            String
+  telefone        String
+  email           String              @unique
+  parentesco      Parentesco          // PAI, MAE, TUTOR, etc
+  ativo           Boolean             @default(true)
+
+  alunos          AlunoResponsavel[]
+
+  @@map("responsaveis")
+}
+
+model AlunoResponsavel {
+  alunoId       Int
+  responsavelId Int
+  
+  aluno         Aluno       @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  responsavel   Responsavel @relation(fields: [responsavelId], references: [id], onDelete: Cascade)
+
+  @@id([alunoId, responsavelId])
+  @@map("aluno_responsaveis")
+}
+
+// -------------------- ATIVIDADE --------------------
+model Atividade {
+  id              Int         @id @default(autoincrement())
+  titulo          String
+  descricao       String
+  tipo            TipoAtividade // PROVA, TRABALHO, PARTICIPACAO, etc
+  peso            Float       @default(1.0) // Peso da atividade na média
+  valorMaximo     Float       @default(10.0) // Valor máximo da atividade
+  dataVencimento  DateTime?
+  bimestre        Bimestre    // 1º, 2º, 3º, 4º bimestre
+  
+  disciplina      Disciplina  @relation(fields: [disciplinaId], references: [id], onDelete: Cascade)
+  disciplinaId    Int
+  professor       Professor   @relation(fields: [professorId], references: [id])
+  professorId     Int
+  
+  notas           Nota[]
+
+  @@map("atividades")
+}
+
+// -------------------- NOTA --------------------
+model Nota {
+  id              Int         @id @default(autoincrement())
+  valor           Float
+  observacao      String?
+  dataLancamento  DateTime    @default(now())
+  
+  aluno           Aluno       @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  alunoId         Int
+  atividade       Atividade   @relation(fields: [atividadeId], references: [id], onDelete: Cascade)
+  atividadeId     Int
+  professor       Professor   @relation(fields: [professorId], references: [id])
+  professorId     Int
+
+  @@unique([alunoId, atividadeId]) // Um aluno só pode ter uma nota por atividade
+  @@map("notas")
+}
+
+// -------------------- MÉDIAS --------------------
+model MediaBimestre {
+  id              Int         @id @default(autoincrement())
+  bimestre        Bimestre
+  disciplina      String      // Nome da disciplina
+  disciplinaId    Int
+  media           Float
+  faltas          Int         @default(0)
+  situacao        SituacaoBimestre
+  observacao      String?
+  
+  aluno           Aluno       @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  alunoId         Int
+
+  @@unique([alunoId, disciplinaId, bimestre])
+  @@map("medias_bimestre")
+}
+
+model MediaFinal {
+  id                  Int             @id @default(autoincrement())
+  disciplina          String          // Nome da disciplina
+  disciplinaId        Int
+  mediaAnual          Float
+  totalFaltas         Int             @default(0)
+  situacaoFinal       SituacaoFinal
+  pontosRecuperacao   Float?          // Quantos pontos precisa na recuperação
+  observacao          String?
+  
+  aluno               Aluno           @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  alunoId             Int
+
+  @@unique([alunoId, disciplinaId])
+  @@map("medias_finais")
+}
+
+// -------------------- AVISOS --------------------
+model Avisos {
+  id              Int         @id @default(autoincrement())
+  titulo          String
+  descricao       String
+  urgencia        Urgencia    @default(NORMAL)
+  criadoEm        DateTime    @default(now())
+  atualizadoEm    DateTime    @updatedAt
+  ativo           Boolean     @default(true)
+
+  criadoPor       User        @relation("AvisosCriados", fields: [criadoPorId], references: [id])
+  criadoPorId     Int
+
+  @@map("avisos")
+}
+
+// -------------------- ENUMS --------------------
+enum Role {
+  ADMIN
+  SECRETARIA
+  PROFESSOR
+  ALUNO
+  RESPONSAVEL
+}
+
+enum Turno {
+  MANHA
+  TARDE
+  NOITE
+  INTEGRAL
+}
+
+enum Parentesco {
+  PAI
+  MAE
+  RESPONSAVEL_LEGAL
+  TUTOR
+  AVO
+  TIO
+  IRMAO
+  OUTRO
+}
+
+enum TipoAtividade {
+  PROVA
+  TRABALHO
+  EXERCICIO
+  PARTICIPACAO
+  PROJETO
+  SEMINARIO
+  RECUPERACAO
+}
+
+enum Bimestre {
+  PRIMEIRO
+  SEGUNDO
+  TERCEIRO
+  QUARTO
+}
+
+enum SituacaoBimestre {
+  APROVADO      // Média >= 7.0
+  RECUPERACAO   // Média >= 5.0 e < 7.0
+  REPROVADO     // Média < 5.0
+}
+
+enum SituacaoFinal {
+  APROVADO              // Média anual >= 7.0
+  RECUPERACAO_FINAL     // Média anual >= 5.0 e < 7.0
+  REPROVADO_NOTA        // Média anual < 5.0
+  REPROVADO_FALTA       // Muitas faltas (>25% das aulas)
+  REPROVADO_NOTA_FALTA  // Reprovado por nota e falta
+}
+
+enum Urgencia {
+  BAIXA
+  NORMAL
+  ALTA
+  CRITICA
+}

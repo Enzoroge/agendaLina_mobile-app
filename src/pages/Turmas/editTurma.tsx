@@ -11,27 +11,24 @@ import {
   SafeAreaView
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { Picker } from '@react-native-picker/picker';
 import { api } from '../../services/api';
-
-// Interface baseada no JSON fornecido
-interface TurmaRequest {
-  nome: string;
-  ano: number;
-  professorIds: number[];
-  alunoIds: number[];
-  disciplinaIds: number[];
-}
 
 interface Professor {
   id: number;
   nome: string;
+  user?: {
+    name: string;
+  };
 }
 
 interface Aluno {
   id: number;
   nome: string;
+  user?: {
+    name: string;
+  };
 }
 
 interface Disciplina {
@@ -39,14 +36,26 @@ interface Disciplina {
   nome: string;
 }
 
-export default function AdicionarTurma() {
+interface Turma {
+  id: number;
+  nome: string;
+  ano: number;
+  professores: any[];
+  alunos: any[];
+  disciplinas: any[];
+}
+
+export default function EditTurma() {
   const navigation = useNavigation();
+  const route = useRoute();
+  const { turmaId } = route.params as { turmaId: number };
   
   // Estados do formulário
   const [nome, setNome] = useState('');
   const [ano, setAno] = useState(2024);
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
+  const [turma, setTurma] = useState<Turma | null>(null);
 
   // Estados para dados disponíveis
   const [professoresDisponiveis, setProfessoresDisponiveis] = useState<Professor[]>([]);
@@ -66,63 +75,45 @@ export default function AdicionarTurma() {
   const loadInitialData = async () => {
     setLoadingData(true);
     try {
-      console.log('🔄 Iniciando carregamento de dados...');
+      console.log('🔄 Carregando dados da turma:', turmaId);
       
-      // Carregar professores
-      console.log('🔄 Carregando professores...');
-      const professoresRes = await api.get('/professores');
-      console.log('✅ PROFESSORES - FORÇANDO DEBUG:', {
-        status: professoresRes.status,
-        data: professoresRes.data,
-        isArray: Array.isArray(professoresRes.data),
-        length: professoresRes.data?.length,
-        primeiro: professoresRes.data?.[0],
-        segundo: professoresRes.data?.[1]
-      });
+      // Carregar dados da turma específica
+      const turmaRes = await api.get(`/turma/${turmaId}`);
+      console.log('✅ Dados da turma:', turmaRes.data);
       
-      // Carregar alunos (sabemos que /alunos funciona)
-      console.log('🔄 Carregando alunos...');
-      const alunosRes = await api.get('/alunos');
-      console.log('✅ ALUNOS - FORÇANDO DEBUG:', {
-        status: alunosRes.status,
-        dadosBrutos: alunosRes.data,
-        temAlunos: !!alunosRes.data?.alunos,
-        alunosArray: alunosRes.data?.alunos?.slice(0, 2),
-        primeiro: alunosRes.data?.alunos?.[0],
-        segundo: alunosRes.data?.alunos?.[1]
-      });
-      
-      // Carregar disciplinas
-      console.log('🔄 Carregando disciplinas...');
-      const disciplinasRes = await api.get('/disciplinas');
-      console.log('✅ Disciplinas:', disciplinasRes.data);
+      const turmaData = turmaRes.data;
+      setTurma(turmaData);
+      setNome(turmaData.nome);
+      setAno(turmaData.ano);
 
-      // Definir estados - corrigindo estrutura dos alunos
+      // Carregar dados disponíveis
+      const [professoresRes, alunosRes, disciplinasRes] = await Promise.all([
+        api.get('/professores'),
+        api.get('/alunos'),
+        api.get('/disciplinas')
+      ]);
+
       setProfessoresDisponiveis(Array.isArray(professoresRes.data) ? professoresRes.data : []);
       
-      // Alunos podem vir em alunosRes.data.alunos ou alunosRes.data
       const alunosData = alunosRes.data?.alunos || alunosRes.data;
       setAlunosDisponiveis(Array.isArray(alunosData) ? alunosData : []);
       
       setDisciplinasDisponiveis(Array.isArray(disciplinasRes.data) ? disciplinasRes.data : []);
+
+      // Pré-selecionar itens já associados
+      const professorIds = turmaData.professores?.map((p: any) => p.professor?.id || p.id).filter(Boolean) || [];
+      const alunoIds = turmaData.alunos?.map((a: any) => a.id).filter(Boolean) || [];
+      const disciplinaIds = turmaData.disciplinas?.map((d: any) => d.disciplina?.id || d.id).filter(Boolean) || [];
+
+      setProfessoresSelecionados(professorIds);
+      setAlunosSelecionados(alunoIds);
+      setDisciplinasSelecionadas(disciplinaIds);
+
+      console.log('✅ Pré-seleções:', { professorIds, alunoIds, disciplinaIds });
       
-      console.log('📊 RESUMO FINAL:', {
-        professores: Array.isArray(professoresRes.data) ? professoresRes.data.length : 0,
-        alunos: Array.isArray(alunosData) ? alunosData.length : 0,
-        disciplinas: Array.isArray(disciplinasRes.data) ? disciplinasRes.data.length : 0,
-        estruturaAlunos: {
-          dadosBrutos: alunosRes.data,
-          alunosExtraidos: alunosData,
-          tipoAlunos: Array.isArray(alunosData) ? 'array' : typeof alunosData
-        }
-      });
     } catch (error) {
-      console.error('❌ Erro geral ao carregar dados:', error);
-      Alert.alert('Erro', 'Não foi possível carregar os dados necessários');
-      // Fallback para arrays vazios
-      setProfessoresDisponiveis([]);
-      setAlunosDisponiveis([]);
-      setDisciplinasDisponiveis([]);
+      console.error('❌ Erro ao carregar dados:', error);
+      Alert.alert('Erro', 'Não foi possível carregar os dados da turma');
     } finally {
       setLoadingData(false);
     }
@@ -160,14 +151,13 @@ export default function AdicionarTurma() {
     return true;
   };
 
-  // Criar turma
-  const handleCreate = async () => {
+  // Atualizar turma
+  const handleUpdate = async () => {
     if (!validateForm()) return;
 
     setLoading(true);
     try {
-      // Payload baseado no JSON fornecido
-      const payload: TurmaRequest = {
+      const payload = {
         nome: nome.trim(),
         ano,
         professorIds: professoresSelecionados,
@@ -175,18 +165,77 @@ export default function AdicionarTurma() {
         disciplinaIds: disciplinasSelecionadas
       };
 
-      console.log('Criando turma:', payload);
+      console.log('Atualizando turma:', payload);
       
-      const response = await api.post('/turma', payload);
+      const response = await api.put(`/turma/${turmaId}`, payload);
       
-      console.log('Turma criada:', response.data);
+      console.log('Turma atualizada:', response.data);
       
-      Alert.alert('Sucesso', 'Turma criada com sucesso!', [
+      Alert.alert('Sucesso', 'Turma atualizada com sucesso!', [
         { text: 'OK', onPress: () => navigation.goBack() }
       ]);
     } catch (error: any) {
-      console.error('Erro ao criar turma:', error);
-      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Erro ao criar turma';
+      console.error('Erro ao atualizar turma:', error);
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Erro ao atualizar turma';
+      Alert.alert('Erro', errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Deletar turma
+  const handleDelete = () => {
+    Alert.alert(
+      'Confirmar Exclusão',
+      'Tem certeza que deseja excluir esta turma? Esta ação não pode ser desfeita.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Excluir', style: 'destructive', onPress: confirmDelete }
+      ]
+    );
+  };
+
+  const confirmDelete = async () => {
+    setLoading(true);
+    try {
+      await api.delete(`/turma/${turmaId}`);
+      
+      Alert.alert('Sucesso', 'Turma excluída com sucesso!', [
+        { text: 'OK', onPress: () => navigation.goBack() }
+      ]);
+    } catch (error: any) {
+      console.error('Erro ao excluir turma:', error);
+      
+      // Se houver dependências, mostrar opção de exclusão forçada
+      if (error.response?.status === 400 && error.response?.data?.message?.includes('dependências')) {
+        Alert.alert(
+          'Turma com Dependências',
+          `${error.response.data.message}\n\nDeseja excluir mesmo assim? Isso removerá todos os dados relacionados.`,
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            { text: 'Excluir Tudo', style: 'destructive', onPress: forceDelete }
+          ]
+        );
+      } else {
+        const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Erro ao excluir turma';
+        Alert.alert('Erro', errorMessage);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const forceDelete = async () => {
+    setLoading(true);
+    try {
+      await api.delete(`/turma/${turmaId}/force`);
+      
+      Alert.alert('Sucesso', 'Turma e todas as dependências foram excluídas!', [
+        { text: 'OK', onPress: () => navigation.goBack() }
+      ]);
+    } catch (error: any) {
+      console.error('Erro ao excluir turma forçadamente:', error);
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Erro ao excluir turma';
       Alert.alert('Erro', errorMessage);
     } finally {
       setLoading(false);
@@ -211,8 +260,10 @@ export default function AdicionarTurma() {
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Feather name="arrow-left" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Nova Turma</Text>
-        <View style={{ width: 24 }} />
+        <Text style={styles.headerTitle}>Editar Turma</Text>
+        <TouchableOpacity onPress={handleDelete} style={styles.deleteButton}>
+          <Feather name="trash-2" size={20} color="#ff4444" />
+        </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -226,7 +277,7 @@ export default function AdicionarTurma() {
               style={styles.input}
               value={nome}
               onChangeText={setNome}
-              placeholder="Ex: Fabianne Pereira"
+              placeholder="Ex: Turma A"
               placeholderTextColor="#999"
             />
           </View>
@@ -253,7 +304,7 @@ export default function AdicionarTurma() {
             Professores ({professoresSelecionados.length} selecionado{professoresSelecionados.length !== 1 ? 's' : ''})
           </Text>
           <View style={styles.selectionContainer}>
-            {Array.isArray(professoresDisponiveis) && professoresDisponiveis.map((professor: any) => (
+            {professoresDisponiveis.map((professor) => (
               <TouchableOpacity
                 key={professor.id}
                 style={[
@@ -271,7 +322,7 @@ export default function AdicionarTurma() {
                   styles.selectionText,
                   professoresSelecionados.includes(professor.id) && styles.selectionTextSelected
                 ]}>
-                  {professor.user?.name || professor.nome || `Professor ${professor.id}`}
+                  {professor.user?.name || professor.nome}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -282,14 +333,9 @@ export default function AdicionarTurma() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
             Alunos ({alunosSelecionados.length} selecionado{alunosSelecionados.length !== 1 ? 's' : ''})
-            {/* Debug Info */}
-            <Text style={{ fontSize: 12, color: '#666', fontWeight: 'normal' }}>
-              {` - Total: ${alunosDisponiveis.length}`}
-            </Text>
           </Text>
           <View style={styles.selectionContainer}>
-            {Array.isArray(alunosDisponiveis) && alunosDisponiveis.length > 0 ? (
-              alunosDisponiveis.map((aluno: any) => (
+            {alunosDisponiveis.map((aluno) => (
               <TouchableOpacity
                 key={aluno.id}
                 style={[
@@ -307,21 +353,10 @@ export default function AdicionarTurma() {
                   styles.selectionText,
                   alunosSelecionados.includes(aluno.id) && styles.selectionTextSelected
                 ]}>
-                  {aluno.user?.name || aluno.nome || `Aluno ${aluno.id}`}
+                  {aluno.user?.name || aluno.nome}
                 </Text>
               </TouchableOpacity>
-              ))
-            ) : (
-              <View style={styles.emptyState}>
-                <Feather name="users" size={32} color="#999" />
-                <Text style={styles.emptyText}>
-                  {loadingData ? 'Carregando alunos...' : 'Nenhum aluno encontrado'}
-                </Text>
-                <Text style={styles.debugText}>
-                  Verifique o console para logs de debug
-                </Text>
-              </View>
-            )}
+            ))}
           </View>
         </View>
 
@@ -331,7 +366,7 @@ export default function AdicionarTurma() {
             Disciplinas ({disciplinasSelecionadas.length} selecionada{disciplinasSelecionadas.length !== 1 ? 's' : ''})
           </Text>
           <View style={styles.selectionContainer}>
-            {Array.isArray(disciplinasDisponiveis) && disciplinasDisponiveis.map((disciplina) => (
+            {disciplinasDisponiveis.map((disciplina) => (
               <TouchableOpacity
                 key={disciplina.id}
                 style={[
@@ -356,19 +391,19 @@ export default function AdicionarTurma() {
           </View>
         </View>
 
-        {/* Botão Criar */}
+        {/* Botões */}
         <View style={styles.buttonContainer}>
           <TouchableOpacity
-            style={[styles.createButton, loading && styles.createButtonDisabled]}
-            onPress={handleCreate}
+            style={[styles.updateButton, loading && styles.updateButtonDisabled]}
+            onPress={handleUpdate}
             disabled={loading}
           >
             {loading ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
               <>
-                <Feather name="plus" size={20} color="#fff" />
-                <Text style={styles.createButtonText}>Criar Turma</Text>
+                <Feather name="save" size={20} color="#fff" />
+                <Text style={styles.updateButtonText}>Salvar Alterações</Text>
               </>
             )}
           </TouchableOpacity>
@@ -407,6 +442,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#333',
+  },
+  deleteButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#ffebee',
   },
   content: {
     flex: 1,
@@ -487,7 +527,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
     marginBottom: 40,
   },
-  createButton: {
+  updateButton: {
     backgroundColor: '#1565C0',
     flexDirection: 'row',
     alignItems: 'center',
@@ -500,39 +540,15 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 5,
   },
-  createButtonDisabled: {
+  updateButtonDisabled: {
     backgroundColor: '#ccc',
     shadowOpacity: 0,
     elevation: 0,
   },
-  createButtonText: {
+  updateButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 30,
-    backgroundColor: '#f9f9f9',
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#e0e0e0',
-    borderStyle: 'dashed',
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#666',
-    marginTop: 12,
-    textAlign: 'center',
-    fontWeight: '500',
-  },
-  debugText: {
-    fontSize: 12,
-    color: '#999',
-    marginTop: 4,
-    textAlign: 'center',
-    fontStyle: 'italic',
   },
 });

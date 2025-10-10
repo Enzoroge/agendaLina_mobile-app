@@ -106,10 +106,20 @@ export default function EditAlunoModal({ visible, aluno, onClose, onUpdate }: Ed
     try {
       setLoading(true);
       
-      await api.put(`/aluno/${aluno.id}`, {
+      console.log('✏️ Tentando atualizar aluno:', {
+        id: aluno.id,
         nome: nome.trim(),
         turmaId: turmaId,
       });
+      console.log('✏️ URL da requisição:', `/aluno/${aluno.id}`);
+      
+      const response = await api.put(`/aluno/${aluno.id}`, {
+        nome: nome.trim(),
+        turmaId: turmaId,
+      });
+      
+      console.log('✅ Resposta da atualização - Status:', response.status);
+      console.log('✅ Resposta da atualização - Data:', response.data);
 
       Alert.alert(
         '✅ Sucesso',
@@ -124,11 +134,15 @@ export default function EditAlunoModal({ visible, aluno, onClose, onUpdate }: Ed
           },
         ]
       );
-    } catch (error) {
-      console.error('Erro ao atualizar aluno:', error);
+    } catch (error: any) {
+      console.error('❌ Erro detalhado ao atualizar aluno:', error);
+      console.error('❌ Status do erro:', error.response?.status);
+      console.error('❌ Dados do erro:', error.response?.data);
+      console.error('❌ URL que falhou:', error.config?.url);
+      
       Alert.alert(
         '❌ Erro',
-        'Não foi possível atualizar o aluno. Tente novamente.'
+        `Não foi possível atualizar o aluno. \nStatus: ${error.response?.status}\nDetalhes: ${error.response?.data?.message || error.message}`
       );
     } finally {
       setLoading(false);
