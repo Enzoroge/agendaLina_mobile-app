@@ -52,16 +52,17 @@ export default function CriarAtividades() {
     try {
       setLoading(true);
       
-      const [turmasResponse, disciplinasResponse] = await Promise.all([
-        api.get('/turmas'),
-        api.get('/disciplina')
+      // Usa os novos métodos do serviço com fallbacks
+      const [turmasData, disciplinasData] = await Promise.all([
+        atividadeService.buscarTurmas(),
+        atividadeService.buscarDisciplinas()
       ]);
       
-      setTurmas(turmasResponse.data);
-      setDisciplinas(disciplinasResponse.data);
+      setTurmas(turmasData);
+      setDisciplinas(disciplinasData);
       
-      console.log('Turmas carregadas:', turmasResponse.data);
-      console.log('Disciplinas carregadas:', disciplinasResponse.data);
+      console.log('Turmas carregadas:', turmasData);
+      console.log('Disciplinas carregadas:', disciplinasData);
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
       Alert.alert('Erro', 'Não foi possível carregar os dados necessários');

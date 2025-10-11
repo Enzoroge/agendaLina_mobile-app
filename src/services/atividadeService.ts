@@ -70,31 +70,37 @@ export interface ListarAtividadesRequest {
 
 class AtividadeService {
   
-  // Listar atividades
   async listar(params?: ListarAtividadesRequest) {
-    try {
-      const queryParams = new URLSearchParams();
-      
-      if (params?.disciplinaId) queryParams.append('disciplinaId', params.disciplinaId.toString());
-      if (params?.turmaId) queryParams.append('turmaId', params.turmaId.toString());
-      if (params?.page) queryParams.append('page', params.page.toString());
-      if (params?.limit) queryParams.append('limit', params.limit.toString());
+    const queryParams = new URLSearchParams();
+    if (params?.disciplinaId) queryParams.append('disciplinaId', params.disciplinaId.toString());
+    if (params?.turmaId) queryParams.append('turmaId', params.turmaId.toString());
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
 
-      const queryString = queryParams.toString();
-      const url = queryString ? `/atividades?${queryString}` : '/atividades';
-      
-      const response = await api.get(url);
-      return response.data;
-    } catch (error) {
+    const queryString = queryParams.toString();
+    const urlPadrao = queryString ? `/atividades?${queryString}` : '/atividades';
+    
+    try {
+      const response = await api.get(urlPadrao);
+      if (Array.isArray(response.data)) {
+        return response.data;
+      }
+      if (Array.isArray(response.data.atividades)) {
+        return response.data.atividades;
+      }
+      return [];
+    } catch (error: any) {
       console.error('Erro ao listar atividades:', error);
-      throw error;
+      return [];
     }
   }
 
-  // Buscar atividade por ID
   async buscarPorId(id: number) {
     try {
-      const response = await api.get(`/atividades/${id}`);
+      const response = await api.get(`/atividade/${id}`);
+      if (response.data.atividade) {
+        return response.data.atividade;
+      }
       return response.data;
     } catch (error) {
       console.error('Erro ao buscar atividade:', error);
@@ -102,10 +108,12 @@ class AtividadeService {
     }
   }
 
-  // Criar nova atividade
   async criar(data: CreateAtividadeRequest) {
     try {
-      const response = await api.post('/atividades', data);
+      const response = await api.post('/atividade', data);
+      if (response.data.atividade) {
+        return response.data.atividade;
+      }
       return response.data;
     } catch (error) {
       console.error('Erro ao criar atividade:', error);
@@ -113,11 +121,13 @@ class AtividadeService {
     }
   }
 
-  // Atualizar atividade
   async atualizar(data: UpdateAtividadeRequest) {
     try {
       const { atividadeId, ...updateData } = data;
-      const response = await api.put(`/atividades/${atividadeId}`, updateData);
+      const response = await api.put(`/atividade/${atividadeId}`, updateData);
+      if (response.data.atividade) {
+        return response.data.atividade;
+      }
       return response.data;
     } catch (error) {
       console.error('Erro ao atualizar atividade:', error);
@@ -125,10 +135,9 @@ class AtividadeService {
     }
   }
 
-  // Deletar atividade
   async deletar(id: number) {
     try {
-      const response = await api.delete(`/atividades/${id}`);
+      const response = await api.delete(`/atividade/${id}`);
       return response.data;
     } catch (error) {
       console.error('Erro ao deletar atividade:', error);
@@ -136,7 +145,6 @@ class AtividadeService {
     }
   }
 
-  // Métodos compatíveis com código legacy - manter para compatibilidade
   async listarAtividades(): Promise<Atividade[]> {
     return this.listar();
   }
@@ -170,6 +178,77 @@ class AtividadeService {
 
   async deletarAtividade(id: number): Promise<void> {
     await this.deletar(id);
+  }
+
+  // Métodos para buscar turmas e disciplinas com fallbacks
+  async buscarTurmas() {
+    try {
+      // Tenta diferentes endpoints para turmas
+      const endpoints = ['/turmas', '/turma'];
+      
+      for (const endpoint of endpoints) {
+        try {
+          const response = await api.get(endpoint);
+          
+          // Trata diferentes formatos de resposta
+          if (Array.isArray(response.data)) {
+            return response.data;
+          }
+          if (Array.isArray(response.data.turmas)) {
+            return response.data.turmas;
+          }
+          if (response.data.turma) {
+            return Array.isArray(response.data.turma) ? response.data.turma : [response.data.turma];
+          }
+        } catch (error: any) {
+          if (error.response?.status !== 404) {
+            console.warn(`Erro no endpoint ${endpoint}:`, error.message);
+          }
+          continue;
+        }
+      }
+      
+      console.warn('Nenhum endpoint de turmas encontrado');
+      return [];
+    } catch (error) {
+      console.error('Erro ao buscar turmas:', error);
+      return [];
+    }
+  }
+
+  async buscarDisciplinas() {
+    try {
+      // Tenta diferentes endpoints para disciplinas
+      const endpoints = ['/disciplina', '/disciplinas'];
+      
+      for (const endpoint of endpoints) {
+        try {
+          const response = await api.get(endpoint);
+          
+          // Trata diferentes formatos de resposta
+          if (Array.isArray(response.data)) {
+            return response.data;
+          }
+          if (Array.isArray(response.data.disciplinas)) {
+            return response.data.disciplinas;
+          }
+          if (response.data.disciplina) {
+            return Array.isArray(response.data.disciplina) ? response.data.disciplina : [response.data.disciplina];
+          }
+        } catch (error: any) {
+          if (error.response?.status !== 404) {
+            console.warn(`Erro no endpoint ${endpoint}:`, error.message);
+          }
+          continue;
+        }
+      }
+      
+      console.warn('Nenhum endpoint de disciplinas encontrado');
+      return [];
+    } catch (error) {
+      console.error('Erro ao buscar disciplinas:', error);
+      return [];
+    }
   }
 }
 

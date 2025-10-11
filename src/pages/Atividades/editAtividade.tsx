@@ -58,21 +58,20 @@ export default function EditAtividade() {
     try {
       setLoading(true);
       
-      const [atividadeResponse, turmasResponse] = await Promise.all([
+      const [atividadeData, turmasData] = await Promise.all([
         atividadeService.buscarPorId(atividadeId),
-        api.get('/turmas')
+        atividadeService.buscarTurmas()
       ]);
       
-      const atividadeData = atividadeResponse;
       setAtividade(atividadeData);
       setTitulo(atividadeData.titulo);
       setDescricao(atividadeData.descricao);
       setTurmasSelecionadas(atividadeData.turmas?.map((t: any) => t.id) || []);
       
-      setTurmas(turmasResponse.data);
+      setTurmas(turmasData);
       
       console.log('Atividade carregada:', atividadeData);
-      console.log('Turmas carregadas:', turmasResponse.data);
+      console.log('Turmas carregadas:', turmasData);
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
       Alert.alert('Erro', 'Não foi possível carregar os dados da atividade');
