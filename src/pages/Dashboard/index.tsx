@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState, useRef } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, FlatList, ScrollView } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, FlatList, ScrollView, Image } from "react-native";
 import { AuthContext } from "../../contexts/AuthContext";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { api } from "../../services/api";
@@ -200,7 +200,14 @@ export default function Dashboard() {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.welcomeSection}>
-          <Text style={styles.headerTitle}>🏠 Escola Lina Rodrigues</Text>
+          <View style={styles.headerTitleContainer}>
+            <Image 
+              source={require('../../assets/logo.jpeg')} 
+              style={styles.headerLogo}
+              resizeMode="contain"
+            />
+            <Text style={styles.headerTitle}>Escola Lina Rodrigues</Text>
+          </View>
           <Text style={styles.welcomeText}>Olá, {user.name}!</Text>
           <Text style={styles.roleText}>Perfil: {user.role}</Text>
         </View>
@@ -245,19 +252,14 @@ export default function Dashboard() {
             {/* Opções apenas para alunos */}
             {isAluno && (
               <>
-                <TouchableOpacity style={styles.gridItem} onPress={() => (navigation as any).navigate("Boletim")}>
+                <TouchableOpacity style={styles.gridItem} onPress={() => (navigation as any).navigate("MeuBoletim")}>
                   <Text style={styles.gridIcon}>📊</Text>
                   <Text style={styles.gridText}>Meu Boletim</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.gridItem} onPress={() => (navigation as any).navigate("MinhaTurma")}>
-                  <Text style={styles.gridIcon}>👥</Text>
-                  <Text style={styles.gridText}>Minha Turma</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.gridItem} onPress={() => (navigation as any).navigate("Calendario")}>
-                  <Text style={styles.gridIcon}>📅</Text>
-                  <Text style={styles.gridText}>Calendário</Text>
+                <TouchableOpacity style={styles.gridItem} onPress={() => (navigation as any).navigate("MinhasAtividades")}>
+                  <Text style={styles.gridIcon}>📝</Text>
+                  <Text style={styles.gridText}>Minhas Atividades</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -268,6 +270,33 @@ export default function Dashboard() {
                 <TouchableOpacity style={styles.gridItem} onPress={() => (navigation as any).navigate("Professores")}>
                   <Text style={styles.gridIcon}>👨‍🏫</Text>
                   <Text style={styles.gridText}>Professores</Text>
+                </TouchableOpacity>
+
+                {/* Ícone de Boletim: Para professor vai para Lançar Médias, para outros vai para listagem */}
+                <TouchableOpacity 
+                  style={styles.gridItem} 
+                  onPress={() => {
+                    console.log('🔍 Clique no ícone Boletim - Verificando tipo de usuário...');
+                    console.log('👤 user.role:', user?.role);
+                    console.log('🎓 isProfessor:', isProfessor);
+                    console.log('📚 isAluno:', isAluno);
+                    
+                    if (isProfessor) {
+                      console.log('➡️ Redirecionando PROFESSOR para SelecionarTurmaBoletim');
+                      (navigation as any).navigate("SelecionarTurmaBoletim");
+                    } else if (isAluno) {
+                      console.log('➡️ Redirecionando ALUNO para MeuBoletim');
+                      (navigation as any).navigate("MeuBoletim");
+                    } else {
+                      console.log('➡️ Redirecionando ADMIN/OUTROS para Boletins');
+                      (navigation as any).navigate("Boletins");
+                    }
+                  }}
+                >
+                  <Text style={styles.gridIcon}>📊</Text>
+                  <Text style={styles.gridText}>
+                    {isProfessor ? "Lançar Médias" : "Boletins"}
+                  </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.gridItem} onPress={() => (navigation as any).navigate("Alunos")}>
@@ -332,11 +361,22 @@ const styles = StyleSheet.create({
   welcomeSection: {
     alignItems: 'flex-start',
   },
+  headerTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  headerLogo: {
+    width: 40,
+    height: 40,
+    marginRight: 12,
+    borderRadius: 20,
+  },
   headerTitle: {
     fontSize: 28,
     fontWeight: 'bold',
     color: '#fff',
-    marginBottom: 8,
+    flex: 1,
   },
   welcomeText: {
     fontSize: 18,

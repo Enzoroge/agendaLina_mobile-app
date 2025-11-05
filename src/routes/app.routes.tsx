@@ -13,6 +13,13 @@ import Alunos from "../pages/Alunos";
 import Turmas from "../pages/Turmas";
 import Disciplina from "../pages/Disciplina";
 import Atividades from "../pages/Atividades";
+import MinhasAtividades from "../pages/Atividades/MinhasAtividades";
+import ListarBoletins from "../pages/Boletim/ListarBoletins";
+import BoletimDetalhe from "../pages/Boletim/BoletimDetalhe";
+import LancarMedias from "../pages/Boletim/LancarMedias";
+import SelecionarTurmaBoletim from "../pages/Boletim/SelecionarTurmaBoletim";
+import ListaAlunosBoletim from "../pages/Boletim/ListaAlunosBoletim";
+import MeuBoletim from "../pages/Boletim/MeuBoletim";
 
 // Telas de criação
 import CriarResponsavel from "../pages/Responsaveis/criarResponsavel";
@@ -101,6 +108,36 @@ export default function AppRoutes() {
           headerBackTitle: "Voltar"
         }}
       />
+      <Stack.Screen
+        name="Boletins"
+        component={ListarBoletins}
+        options={{ headerShown: true, title: 'Boletins' }}
+      />
+      <Stack.Screen
+        name="BoletimDetalhe"
+        component={BoletimDetalhe}
+        options={{ headerShown: true, title: 'Boletim' }}
+      />
+      <Stack.Screen
+        name="LancarMedias"
+        component={LancarMedias}
+        options={{ headerShown: true, title: 'Lançar Médias' }}
+      />
+      <Stack.Screen
+        name="SelecionarTurmaBoletim"
+        component={SelecionarTurmaBoletim}
+        options={{ headerShown: true, title: 'Selecionar Turma' }}
+      />
+      <Stack.Screen
+        name="ListaAlunosBoletim"
+        component={ListaAlunosBoletim}
+        options={{ headerShown: true, title: 'Gerenciar Boletins' }}
+      />
+      <Stack.Screen
+        name="MeuBoletim"
+        component={MeuBoletim}
+        options={{ headerShown: true, title: 'Meu Boletim' }}
+      />
       <Stack.Screen 
         name="Alunos" 
         component={Alunos}
@@ -143,6 +180,15 @@ export default function AppRoutes() {
         options={{
           headerShown: true,
           title: "Atividades",
+          headerBackTitle: "Voltar"
+        }}
+      />
+      <Stack.Screen 
+        name="MinhasAtividades" 
+        component={MinhasAtividades}
+        options={{
+          headerShown: false,
+          title: "Minhas Atividades",
           headerBackTitle: "Voltar"
         }}
       />
